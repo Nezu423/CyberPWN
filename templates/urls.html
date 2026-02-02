@@ -1,0 +1,66 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>CyberPWN — URL DISCOVERY</title>
+<script>if(!sessionStorage.getItem("_k")){window.location.href="/";}</script>
+<style>
+*{box-sizing:border-box}
+html,body{height:100%;margin:0;padding:0;background:#0a0a0a;color:#AAA;font-family:monospace;overflow-y:auto;}
+body{padding:20px 10px 30px;}
+.head{display:flex;justify-content:space-between;align-items:center;border-bottom:1px solid #252525;padding-bottom:10px;margin-bottom:14px;}
+.t1{color:#FCEE0A;font-size:14px;font-weight:bold;}
+.back{color:#555;text-decoration:none;border:1px solid #252525;padding:5px 10px;font-size:11px;}
+.back:focus{background:#FCEE0A;color:#000;}
+.block{background:#111;border:1px solid #252525;padding:12px;margin-bottom:14px;}
+.label{color:#666;font-size:10px;margin-bottom:6px;}
+.input{width:100%;padding:10px;background:#0a0a0a;border:1px solid #333;color:#FFF;font-size:13px;margin-bottom:8px;}
+.action-btn{width:100%;padding:12px;background:#222;color:#FFF;border:1px solid #444;font-weight:bold;cursor:pointer;}
+.action-btn:focus{background:#FCEE0A;color:#000;}
+.log-box{width:100%;height:220px;background:#0a0a0a;border:1px solid #252525;color:#0F0;font-size:11px;padding:8px;overflow-y:scroll;white-space:pre-wrap;margin-top:10px;line-height:1.5;}
+.log-box:focus{border:1px solid #FCEE0A;outline:none;}
+.hint{font-size:10px;color:#444;margin-top:6px;}
+</style>
+</head>
+<body>
+<div class="head">
+    <span class="t1">URL DISCOVERY (hidden paths)</span>
+    <a href="success.html" class="back">&lt; DASHBOARD</a>
+</div>
+
+<div class="block">
+    <div class="label">BASE URL (e.g. http://192.168.1.1)</div>
+    <input type="text" id="baseUrl" class="input" placeholder="http://192.168.1.1" value="http://192.168.1.1">
+    <div class="hint">Common wordlist: /admin, /.git, /login, /backup, etc.</div>
+    <button class="action-btn" type="button" onclick="scanUrls()" style="margin-top:8px;">SCAN HIDDEN URLS</button>
+    <div id="url-log" class="log-box" tabindex="0">Ready. Enter base URL and press SCAN.</div>
+</div>
+
+<script>
+function scanUrls(){
+    var base=document.getElementById("baseUrl").value.trim();
+    if(!base){document.getElementById("url-log").innerHTML="Enter a base URL.";return;}
+    var log=document.getElementById("url-log");
+    log.innerHTML="Scanning...";
+    var x=new XMLHttpRequest();
+    x.open("POST","/api/url_scan",true);
+    x.setRequestHeader("Content-Type","application/json");
+    x.timeout=60000;
+    x.onreadystatechange=function(){
+        if(x.readyState!==4)return;
+        if(x.status===200){
+            try{
+                var d=JSON.parse(x.responseText);
+                if(d.error){log.innerHTML="ERROR: "+d.error;return;}
+                var lines=(d.found||[]).map(function(r){return (r.status||r.code||"")+" "+r.url;});
+                log.innerHTML=(d.base||"")+"\n"+(lines.length?lines.join("\n"):"No paths found.");
+                log.focus();
+            }catch(e){log.innerHTML="DATA ERROR";}
+        }else log.innerHTML="ERROR: "+x.status;
+    };
+    x.send(JSON.stringify({base_url:base}));
+}
+</script>
+</body>
+</html>

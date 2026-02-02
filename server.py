@@ -316,6 +316,90 @@ def evil_twin_stop():
     except Exception as e:
         return jsonify({"error": str(e)})
 
+# --- URL discovery (hidden paths) ---
+URL_WORDLIST = [
+    "/", "/admin", "/login", "/admin.html", "/login.html", "/backup", "/backup.zip",
+    "/.git/config", "/.env", "/config", "/api", "/api/", "/debug", "/phpinfo.php",
+    "/wp-admin", "/wp-login.php", "/.htaccess", "/robots.txt", "/sitemap.xml",
+    "/manager", "/console", "/swagger", "/graphql", "/.well-known/security.txt",
+]
+
+@app.route('/api/url_scan', methods=['POST'])
+def url_scan():
+    try:
+        data = request.get_json(force=True, silent=True) or {}
+        base = (data.get("base_url") or "").strip().rstrip("/")
+        if not base:
+            return jsonify({"error": "base_url required"})
+        if not re.match(r"^https?://[a-zA-Z0-9.\-]+(:\d+)?$", base):
+            return jsonify({"error": "Invalid base_url (use http(s)://host or host:port)"})
+        import urllib.request
+        import ssl
+        found = []
+        ctx = ssl.create_default_context()
+        ctx.check_hostname = False
+        ctx.verify_mode = ssl.CERT_NONE
+        for path in URL_WORDLIST:
+            try:
+                url = base + path
+                req = urllib.request.Request(url, method="GET", headers={"User-Agent": "CyberPWN/1"})
+                with urllib.request.urlopen(req, timeout=5, context=ctx) as r:
+                    found.append({"url": url, "status": r.getcode()})
+            except urllib.error.HTTPError as e:
+                found.append({"url": url, "status": e.code})
+            except Exception:
+                pass
+        return jsonify({"base": base, "found": found})
+    except Exception as e:
+        return jsonify({"error": str(e)})
+
+# --- Cisco VLAN discovery (SNMP) ---
+@app.route('/api/cisco_vlans')
+def cisco_vlans():
+    try:
+        target = request.args.get("target", "").strip() or None
+        if not target:
+            try:
+                ip_raw = _run("hostname -I", 2)
+                target = ip_raw.split()[0] if ip_raw else None
+                if target:
+                    target = ".".join(target.split(".")[:3] + ["1"])
+            except Exception:
+                pass
+        if not target or not re.match(r"^[0-9.]+$", target):
+            return jsonify(["ERROR: No target. Use ?target=192.168.1.1 or ensure network."])
+        cmd = f"snmpwalk -v2c -c public {target} 1.3.6.1.4.1.9.9.46.1.3.1.1.2 2>/dev/null || echo 'snmpwalk not found or no VLAN OID'"
+        out = _run_capture(cmd, timeout=10)
+        lines = (out.get("stdout") or "").split("\n")[:30]
+        if not any("1.3.6" in l for l in lines):
+            lines = ["SNMP VLAN OID not available.", "Install: apt install snmp", "Or use target= switch IP with SNMP enabled."] + lines
+        return jsonify(lines)
+    except Exception as e:
+        return jsonify([f"ERROR: {str(e)}"])
+
+# --- Cisco audit (ports + known vuln hints) ---
+CISCO_HINTS = """
+Cisco common ports: 23 Telnet, 22 SSH, 161 SNMP, 443 HTTPS, 80 HTTP.
+Known issues: default creds, CVE-2018-0171 (Smart Install), CVE-2019-12643 (IOS XE).
+Use only on authorized networks.
+""".strip()
+
+@app.route('/api/cisco_audit')
+def cisco_audit():
+    try:
+        my_ip_raw = _run("hostname -I", 2)
+        if not my_ip_raw:
+            return jsonify(["ERROR: No network."])
+        my_ip = my_ip_raw.split()[0]
+        subnet = f"{'.'.join(my_ip.split('.')[:3])}.0/24"
+        cmd = f"nmap -sT -p 23,22,161,443,80 --open -n {subnet} --exclude {my_ip} 2>&1 | head -80"
+        out = _run_capture(cmd, timeout=60)
+        lines = (out.get("stdout") or "").split("\n")
+        result = [f"TARGET: {subnet}", CISCO_HINTS, ""] + [l for l in lines if l.strip()]
+        return jsonify(result[:50])
+    except Exception as e:
+        return jsonify([f"ERROR: {str(e)}"])
+
 # --- 2. VULNERABILITY MONITOR (High-Risk Ports) ---
 @app.route('/api/nmap', strict_slashes=False)
 def nmap_scan():
