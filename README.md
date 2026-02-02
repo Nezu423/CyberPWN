@@ -2,7 +2,6 @@ CyberPWN is a software UI and BackEnd im designing to use my CB1 As a pentesting
 Marauder does and FlipperZero, the hardware right now is a CB1 with a touchsreen. And an LG Flip 125DL as the 
 Web Viewer.
 
-<<<<<<< HEAD
 ## Always-on (systemd)
 
 To run the web server 24/7 (start on boot, restart on crash):
