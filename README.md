@@ -1,10 +1,13 @@
 CyberPWN is a software UI and BackEnd im designing to use my CB1 As a pentesting device to do things like ESP32 
 Marauder does and FlipperZero, the hardware right now is a CB1 with a touchsreen. And an LG Flip 125DL as the 
 Web Viewer.
-##Dependencies ARM
+
+## Dependencies ARM
+
 Make sure all required system tools and Python packages are installed on your ARM device.
-See the previous list and run:
-Run as Root or with Sudo
+`sudo apt update`
+`sudo apt install -y aircrack-ng mdk3 hostapd hcxdumptool hcxtools nmap tcpdump network-manager iw dnsmasq bluez cron python3-pip python3-dev build-essential`
+pip3 install scapy Run as Root or with Sudo
 Most attacks require root privileges. Run your Flask app with sudo:
 
 
