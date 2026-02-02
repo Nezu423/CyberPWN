@@ -6,8 +6,8 @@ Wants=network-online.target
 [Service]
 Type=simple
 # Replace PROJECT_DIR with your project path (e.g. /home/w4lkm4n/Bruce or /home/w4lkm4n/Pictures/CyberPWN)
-WorkingDirectory=/home/w4lkm4n/Bruce
-ExecStart=/home/w4lkm4n/Bruce/bruce_env/bin/python /home/w4lkm4n/Bruce/server.py
+WorkingDirectory=/home/w4lkm4n/CyberPWN
+ExecStart=/home/w4lkm4n/CyberPWN/bruce_env/bin/python /home/w4lkm4n/CyberPWN/server.py
 Restart=always
 RestartSec=3
 # Listen on 0.0.0.0:5000
