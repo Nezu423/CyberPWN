@@ -1,0 +1,178 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>WIFI_OPS</title>
+<style>
+/* CORE STYLES */
+*{box-sizing:border-box}
+html,body{height:100%;margin:0;padding:0;background-color:#121212;color:#AAA;font-family:monospace;overflow-y:auto;}
+body{padding:35px 5px 40px 5px;}
+.head{border-bottom:1px solid #333;padding-bottom:5px;margin-bottom:10px;display:flex;justify-content:space-between;}
+.t1{color:#FCEE0A;font-size:14px;font-weight:bold;}
+.back{color:#444;text-decoration:none;border:1px solid #333;padding:2px 5px;font-size:10px;}
+.back:focus{background:#FCEE0A;color:#000;}
+
+/* ACCORDION BUTTONS */
+.acc-btn{width:100%;background-color:#1E1E1E;color:#CCC;border:1px solid #333;padding:12px;text-align:left;font-size:14px;font-weight:bold;margin-top:8px;cursor:pointer;}
+.acc-btn:focus{background-color:#FCEE0A;color:#000;outline:none;}
+.action-btn{width:100%;padding:10px;background:#333;color:#FFF;border:1px solid #555;margin-top:5px;font-weight:bold;cursor:pointer;}
+.action-btn:focus{background:#FCEE0A;color:#000;}
+
+/* TOGGLES & STATUS */
+.opt-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 10px; border: 1px solid #222; padding: 10px; }
+.opt-label { display: flex; align-items: center; color: #888; font-size: 11px; cursor: pointer; }
+.opt-label input { margin-right: 8px; accent-color: #FCEE0A; }
+.status-indicator { font-size:10px; padding:2px 5px; border:1px solid #333; margin-left:10px; }
+
+/* SCROLLABLE LOG BOX */
+.panel{display:none;background-color:#000;border:1px solid #333;padding:10px;}
+.log-box{
+    width:100%;
+    height:150px; 
+    background:#111;
+    border:1px solid #333;
+    color:#0F0;
+    font-size:12px;
+    padding:5px;
+    overflow-y:scroll;
+    white-space:pre-wrap;
+    margin-top:5px;
+    line-height:1.5;
+}
+.log-box:focus{ border: 1px solid #FCEE0A; outline: none; }
+</style>
+</head>
+<body>
+
+<div class="head">
+    <div class="t1">LIVE_OPS</div>
+    <a href="success.html" class="back">< BACK</a>
+</div>
+
+<button class="acc-btn" onclick="openP('p1')">> WIFI_SCANNER (SNAPSHOT)</button>
+<div id="p1" class="panel">
+    <button class="action-btn" onclick="req('/api/scan_wifi','ssid-log')">SCAN AREA</button>
+    <div id="ssid-log" class="log-box" tabindex="0">READY</div>
+</div>
+
+<button class="acc-btn" onclick="openP('p2')">> VULN_CHECK</button>
+<div id="p2" class="panel">
+    <div class="opt-grid">
+        <label class="opt-label"><input type="checkbox" id="chk-ssh" checked> SSH (22)</label>
+        <label class="opt-label"><input type="checkbox" id="chk-ftp" checked> FTP (21)</label>
+        <label class="opt-label"><input type="checkbox" id="chk-smb"> SMB (445)</label>
+        <label class="opt-label"><input type="checkbox" id="chk-rdp"> RDP (3389)</label>
+        <label class="opt-label"><input type="checkbox" id="chk-tel"> TELNET (23)</label>
+        <label class="opt-label"><input type="checkbox" id="chk-prn"> PRINTERS</label>
+    </div>
+    <button class="action-btn" onclick="runVulnScan()">SCAN TARGETS</button>
+    <div id="port-log" class="log-box" tabindex="0">READY</div>
+</div>
+
+<button class="acc-btn" onclick="openP('p3')">> TRAFFIC_MONITOR (CONTINUOUS)</button>
+<div id="p3" class="panel">
+    <div style="font-size:10px;color:#666;margin-bottom:5px">
+        MODE: PASSIVE MONITOR <span id="mon-status" class="status-indicator" style="color:#555">IDLE</span>
+    </div>
+    <div style="display:flex; gap:5px">
+        <button class="action-btn" onclick="monitorCmd('start')">START LOGGING</button>
+        <button class="action-btn" style="background:#500" onclick="monitorCmd('stop')">STOP</button>
+    </div>
+    <div id="traffic-log" class="log-box" tabindex="0">WAITING FOR STREAM...</div>
+</div>
+
+<script>
+var monitorTimer = null;
+
+function openP(id){
+    var p = document.getElementById(id);
+    var current = p.style.display;
+    var all = document.getElementsByClassName("panel");
+    for(var i=0;i<all.length;i++) all[i].style.display="none";
+    if(current !== "block"){ p.style.display="block"; }
+}
+
+// --- VULN SCANNER LOGIC ---
+function runVulnScan() {
+    var services = [];
+    if(document.getElementById('chk-ssh').checked) services.push('ssh');
+    if(document.getElementById('chk-ftp').checked) services.push('ftp');
+    if(document.getElementById('chk-smb').checked) services.push('smb');
+    if(document.getElementById('chk-rdp').checked) services.push('rdp');
+    if(document.getElementById('chk-tel').checked) services.push('telnet');
+    if(document.getElementById('chk-prn').checked) services.push('printers');
+
+    if(services.length === 0) {
+        document.getElementById('port-log').innerHTML = "SELECT AT LEAST ONE SERVICE";
+        return;
+    }
+    req('/api/nmap?s=' + services.join(','), 'port-log');
+}
+
+// --- TRAFFIC MONITOR LOGIC ---
+function monitorCmd(action) {
+    var statusSpan = document.getElementById("mon-status");
+    var logBox = document.getElementById("traffic-log");
+
+    if(action === 'start'){
+        statusSpan.innerHTML = "ACTIVE";
+        statusSpan.style.color = "#0F0";
+        logBox.innerHTML = "INITIALIZING MONITOR MODE...\n";
+        
+        // 1. Send Start Command
+        fetch('/api/monitor?cmd=start').then(()=>{
+            // 2. Start Polling Logs every 2 seconds
+            if(monitorTimer) clearInterval(monitorTimer);
+            monitorTimer = setInterval(function(){
+                fetch('/api/monitor?cmd=logs')
+                .then(r => r.text())
+                .then(data => {
+                    logBox.innerHTML = data;
+                    logBox.scrollTop = logBox.scrollHeight; // Auto-scroll
+                });
+            }, 2000);
+        });
+    } 
+    else if (action === 'stop'){
+        statusSpan.innerHTML = "IDLE";
+        statusSpan.style.color = "#555";
+        
+        // Stop Polling
+        if(monitorTimer) clearInterval(monitorTimer);
+        
+        // Send Stop Command
+        fetch('/api/monitor?cmd=stop').then(r => r.text()).then(d => {
+            logBox.innerHTML += "\n[STOPPED]";
+        });
+    }
+}
+
+// --- GENERIC REQUEST ---
+function req(endpoint, logId){
+    var log = document.getElementById(logId);
+    log.innerHTML = "SCANNING...";
+    var x = new XMLHttpRequest();
+    x.open("GET", endpoint, true);
+    x.timeout = 60000;
+    x.onreadystatechange = function(){
+        if(x.readyState == 4){
+            if(x.status == 200){
+                try {
+                    var d = JSON.parse(x.responseText);
+                    if(Array.isArray(d)){
+                        log.innerHTML = "";
+                        for(var i=0; i<d.length; i++) log.innerHTML += d[i] + "\n";
+                    } else {
+                        log.innerHTML = d.log || d.status || JSON.stringify(d);
+                    }
+                } catch(e) { log.innerHTML = x.responseText; }
+            } else { log.innerHTML = "ERROR: " + x.status; }
+        }
+    };
+    x.send();
+}
+</script>
+</body>
+</html>

@@ -1,0 +1,54 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>COMMAND</title>
+<script>
+// Security Check: Kick user out if not logged in
+if(!sessionStorage.getItem("_k")){window.location.href="/";}
+</script>
+<style>
+/* DARK THEME CORE */
+*{box-sizing:border-box}
+html,body{height:100%;margin:0;padding:0;background-color:#121212;color:#AAA;font-family:monospace;overflow-y:auto;}
+body{padding:35px 10px 40px 10px;}
+
+/* HEADER */
+.head{border-bottom:1px solid #333;padding-bottom:5px;margin-bottom:10px;display:flex;justify-content:space-between;}
+.t1{color:#FCEE0A;font-size:14px;font-weight:bold;}
+
+/* MENU BUTTONS */
+a.btn{display:block;width:100%;background-color:#1E1E1E;color:#CCC;text-decoration:none;padding:12px 10px;margin-bottom:8px;border:1px solid #333;font-size:16px;font-weight:bold;}
+a.btn:focus,a.btn:active{background-color:#FCEE0A;color:#000;outline:none;}
+
+/* LOGOUT BUTTON */
+.out{border:1px solid #444;color:#666;margin-top:15px;text-align:center;cursor:pointer;}
+</style>
+</head>
+<body>
+
+<div class="head">
+    <div class="t1">COMMAND_NODE</div>
+    <div>v3.0</div>
+</div>
+
+<a href="wifi.html" class="btn" tabindex="1">> WIFI_RECON</a>
+
+<a href="#" class="btn out" tabindex="2" onclick="logout()">[ LOGOUT ]</a>
+
+<script>
+// Auto-focus the first button (Helps with flip phone D-Pads)
+window.onload=function(){
+    setTimeout(function(){
+        document.getElementsByTagName('a')[0].focus()
+    },100);
+}
+
+function logout(){
+    sessionStorage.removeItem("_k");
+    window.location.href="/";
+}
+</script>
+</body>
+</html>

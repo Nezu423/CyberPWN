@@ -1,0 +1,182 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>WIFI_OPS</title>
+<style>
+/* CORE STYLES */
+* { box-sizing: border-box; }
+html, body {
+    height: 100%;
+    margin: 0;
+    padding: 0;
+    background-color: #121212;
+    color: #AAA;
+    font-family: monospace;
+    overflow-y: auto;
+}
+body { padding: 35px 5px 40px 5px; }
+
+/* HEADER */
+.head {
+    border-bottom: 1px solid #333;
+    padding-bottom: 5px;
+    margin-bottom: 10px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+.t1 {
+    color: #FCEE0A;
+    font-size: 14px;
+    font-weight: bold;
+}
+.back {
+    color: #444;
+    text-decoration: none;
+    border: 1px solid #333;
+    padding: 2px 5px;
+    font-size: 10px;
+}
+.back:focus {
+    background: #FCEE0A;
+    color: #000;
+}
+
+/* ACCORDION BUTTONS */
+.acc-btn {
+    width: 100%;
+    background-color: #1E1E1E;
+    color: #CCC;
+    border: 1px solid #333;
+    padding: 12px;
+    text-align: left;
+    font-size: 14px;
+    font-weight: bold;
+    margin-top: 8px;
+    cursor: pointer;
+}
+.acc-btn:focus {
+    background-color: #FCEE0A;
+    color: #000;
+    outline: none;
+}
+
+/* ACTION BUTTONS inside panels */
+.action-btn {
+    width: 100%;
+    padding: 10px;
+    background: #333;
+    color: #FFF;
+    border: 1px solid #555;
+    margin-top: 5px;
+    font-weight: bold;
+    cursor: pointer;
+}
+.action-btn:focus {
+    background: #FCEE0A;
+    color: #000;
+}
+
+/* SCROLLABLE LOG BOX */
+.panel {
+    display: none; /* Collapsed by default */
+    background-color: #000;
+    border: 1px solid #333;
+    padding: 10px;
+}
+.log-box {
+    width: 100%;
+    height: 150px; /* Fixed height for scrolling */
+    background: #111;
+    border: 1px solid #333;
+    color: #0F0; /* Hacker Green */
+    font-size: 12px;
+    padding: 5px;
+    overflow-y: scroll; /* Force scrollbar behavior */
+    white-space: pre-wrap;
+    margin-top: 5px;
+    line-height: 1.5;
+}
+/* Highlight focus so you know when you can scroll with D-PAD */
+.log-box:focus {
+    border: 1px solid #FCEE0A;
+    outline: none;
+}
+</style>
+</head>
+<body>
+
+<div class="head">
+    <div class="t1">LIVE_OPS</div>
+    <a href="/" class="back">< BACK</a>
+</div>
+
+<button class="acc-btn" onclick="openP('p1')">> WIFI_SCANNER</button>
+<div id="p1" class="panel">
+    <button class="action-btn" onclick="req('/api/scan_wifi','ssid-log')">SCAN AREA</button>
+    <div id="ssid-log" class="log-box" tabindex="0">READY</div>
+</div>
+
+<button class="acc-btn" onclick="openP('p2')">> VULN_CHECK</button>
+<div id="p2" class="panel">
+    <div style="font-size:10px;color:#666;margin-bottom:5px">TARGET: 21, 23, 445, 3389</div>
+    <button class="action-btn" onclick="req('/api/nmap','port-log')">SCAN NETWORK</button>
+    <div id="port-log" class="log-box" tabindex="0">READY</div>
+</div>
+
+<script>
+function openP(id){
+    // 1. Get the panel user clicked
+    var p = document.getElementById(id);
+    var current = p.style.display;
+    
+    // 2. Close ALL panels first (accordion style)
+    var all = document.getElementsByClassName("panel");
+    for(var i=0; i<all.length; i++) {
+        all[i].style.display = "none";
+    }
+    
+    // 3. Open the requested one if it was closed
+    if(current !== "block"){
+        p.style.display = "block";
+    }
+}
+
+function req(endpoint, logId){
+    var log = document.getElementById(logId);
+    log.innerHTML = "SCANNING... (MAY TAKE 30s)";
+    
+    var x = new XMLHttpRequest();
+    x.open("GET", endpoint, true);
+    x.timeout = 60000; // 60s timeout for Nmap
+
+    x.onreadystatechange = function(){
+        if(x.readyState == 4){
+            if(x.status == 200){
+                try {
+                    var d = JSON.parse(x.responseText);
+                    if(Array.isArray(d)){
+                        log.innerHTML = "";
+                        for(var i=0; i<d.length; i++) {
+                            log.innerHTML += d[i] + "\n";
+                        }
+                    } else {
+                        log.innerHTML = d.log || d.status || JSON.stringify(d);
+                    }
+                    // KEY FEATURE: Auto-focus the box so you can scroll immediately
+                    log.focus(); 
+                } catch(e) {
+                    log.innerHTML = "DATA ERROR";
+                }
+            } else {
+                log.innerHTML = "ERROR: " + x.status;
+            }
+        }
+    };
+    x.send();
+}
+</script>
+</body>
+</html>
