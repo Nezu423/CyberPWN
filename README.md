@@ -5,9 +5,11 @@ Web Viewer.
 ## Dependencies ARM
 
 Make sure all required system tools and Python packages are installed on your ARM device.
-`sudo apt update`
-`sudo apt install -y aircrack-ng mdk3 hostapd hcxdumptool hcxtools nmap tcpdump network-manager iw dnsmasq bluez cron python3-pip python3-dev build-essential`
-pip3 install scapy Run as Root or with Sudo
+```sudo apt update
+sudo apt install -y aircrack-ng mdk3 hostapd hcxdumptool hcxtools nmap tcpdump network-manager iw dnsmasq bluez cron python3-pip python3-dev build-essential
+pip3 install scapy
+```
+ Run as Root or with Sudo
 Most attacks require root privileges. Run your Flask app with sudo:
 
 
