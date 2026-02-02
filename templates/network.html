@@ -1,0 +1,83 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>CyberPWN — NETWORK</title>
+<script>if(!sessionStorage.getItem("_k")){window.location.href="/";}</script>
+<style>
+*{box-sizing:border-box}
+html,body{height:100%;margin:0;padding:0;background:#0d0d0d;color:#AAA;font-family:monospace;overflow-y:auto;}
+body{padding:20px 10px 30px;}
+.head{display:flex;justify-content:space-between;align-items:center;border-bottom:1px solid #2a2a2a;padding-bottom:8px;margin-bottom:12px;}
+.t1{color:#FCEE0A;font-size:14px;font-weight:bold;}
+.back{color:#555;text-decoration:none;border:1px solid #2a2a2a;padding:4px 8px;font-size:11px;}
+.back:focus{background:#FCEE0A;color:#000;}
+.block{background:#111;border:1px solid #2a2a2a;padding:12px;margin-bottom:14px;}
+.block h3{color:#FCEE0A;font-size:12px;margin:0 0 8px 0;letter-spacing:1px;}
+.btn{display:block;width:100%;padding:10px;background:#222;color:#FFF;border:1px solid #444;font-weight:bold;cursor:pointer;font-size:13px;margin-top:6px;}
+.btn:focus{background:#FCEE0A;color:#000;outline:none;}
+.log{background:#0a0a0a;border:1px solid #2a2a2a;color:#0F0;font-size:12px;padding:8px;min-height:80px;max-height:140px;overflow-y:scroll;white-space:pre-wrap;margin-top:6px;}
+.log:focus{border-color:#FCEE0A;outline:none;}
+</style>
+</head>
+<body>
+<div class="head">
+    <span class="t1">NETWORK</span>
+    <a href="success.html" class="back">&lt; DASHBOARD</a>
+</div>
+
+<div class="block">
+    <h3>SYSTEM INFO</h3>
+    <button class="btn" type="button" onclick="req('/api/network_info','nlog')">REFRESH INFO</button>
+    <div id="nlog" class="log" tabindex="0">Ready. Press button to fetch IP, GW, hostname, WiFi, uptime.</div>
+</div>
+
+<div class="block">
+    <h3>PING</h3>
+    <button class="btn" type="button" onclick="ping('8.8.8.8')">PING 8.8.8.8</button>
+    <button class="btn" type="button" onclick="ping('1.1.1.1')">PING 1.1.1.1</button>
+    <button class="btn" type="button" onclick="req('/api/ping_gateway','plog')">PING GATEWAY</button>
+    <div id="plog" class="log" tabindex="0">Ready. Use buttons above for 8.8.8.8, 1.1.1.1, or gateway.</div>
+</div>
+
+<script>
+function req(endpoint, logId){
+    var el=document.getElementById(logId);
+    el.textContent='Loading...';
+    var x=new XMLHttpRequest();
+    x.open('GET',endpoint,true);
+    x.onreadystatechange=function(){
+        if(x.readyState!==4)return;
+        if(x.status===200){
+            try{
+                var d=JSON.parse(x.responseText);
+                el.textContent=Array.isArray(d)?d.join('\n'):(d.msg||JSON.stringify(d));
+                el.focus();
+            }catch(e){el.textContent='Parse error';}
+        }else{el.textContent='Error '+x.status;}
+    };
+    x.send();
+}
+function ping(host){
+    var plog=document.getElementById('plog');
+    plog.textContent='Pinging...';
+    var url='/api/ping?host='+encodeURIComponent(host);
+    var x=new XMLHttpRequest();
+    x.open('GET',url,true);
+    x.timeout=20000;
+    x.onreadystatechange=function(){
+        if(x.readyState!==4)return;
+        if(x.status===200){
+            try{
+                var d=JSON.parse(x.responseText);
+                plog.textContent=Array.isArray(d)?d.join('\n'):String(d);
+                plog.focus();
+            }catch(e){plog.textContent='Parse error';}
+        }else{plog.textContent='Error '+x.status;}
+    };
+    x.send();
+}
+</script>
+</body>
+</html>

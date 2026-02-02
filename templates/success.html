@@ -1,54 +1,41 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-<title>COMMAND</title>
+<title>CyberPWN — DASHBOARD</title>
 <script>
-// Security Check: Kick user out if not logged in
 if(!sessionStorage.getItem("_k")){window.location.href="/";}
 </script>
 <style>
-/* DARK THEME CORE */
 *{box-sizing:border-box}
-html,body{height:100%;margin:0;padding:0;background-color:#121212;color:#AAA;font-family:monospace;overflow-y:auto;}
-body{padding:35px 10px 40px 10px;}
-
-/* HEADER */
-.head{border-bottom:1px solid #333;padding-bottom:5px;margin-bottom:10px;display:flex;justify-content:space-between;}
-.t1{color:#FCEE0A;font-size:14px;font-weight:bold;}
-
-/* MENU BUTTONS */
-a.btn{display:block;width:100%;background-color:#1E1E1E;color:#CCC;text-decoration:none;padding:12px 10px;margin-bottom:8px;border:1px solid #333;font-size:16px;font-weight:bold;}
-a.btn:focus,a.btn:active{background-color:#FCEE0A;color:#000;outline:none;}
-
-/* LOGOUT BUTTON */
-.out{border:1px solid #444;color:#666;margin-top:15px;text-align:center;cursor:pointer;}
+html,body{height:100%;margin:0;padding:0;background:#0d0d0d;color:#AAA;font-family:monospace;overflow-y:auto;}
+body{padding:20px 12px 30px;}
+.head{border-bottom:1px solid #2a2a2a;padding-bottom:8px;margin-bottom:14px;display:flex;justify-content:space-between;align-items:baseline;}
+.t1{color:#FCEE0A;font-size:15px;font-weight:bold;letter-spacing:1px;}
+.ver{color:#444;font-size:11px;}
+.sub{color:#333;font-size:10px;margin-bottom:12px;}
+a.btn{display:block;width:100%;background:#1a1a1a;color:#CCC;text-decoration:none;padding:14px 12px;margin-bottom:10px;border:1px solid #2a2a2a;font-size:15px;font-weight:bold;transition:background .15s, color .15s;}
+a.btn:focus,a.btn:active{background:#FCEE0A;color:#000;outline:none;border-color:#FCEE0A;}
+a.btn.out{color:#555;margin-top:18px;text-align:center;}
+a.btn.out:focus{background:#333;color:#FFF;}
 </style>
 </head>
 <body>
-
 <div class="head">
-    <div class="t1">COMMAND_NODE</div>
-    <div>v3.0</div>
+    <span class="t1">COMMAND_NODE</span>
+    <span class="ver">v4</span>
 </div>
+<div class="sub">CYBERPWN — Select payload</div>
 
-<a href="wifi.html" class="btn" tabindex="1">> WIFI_RECON</a>
-
-<a href="#" class="btn out" tabindex="2" onclick="logout()">[ LOGOUT ]</a>
+<a href="wifi.html" class="btn" tabindex="1">&gt; PAYLOADS (WIFI)</a>
+<a href="evil_twin.html" class="btn" tabindex="2">&gt; EVIL TWIN</a>
+<a href="deauth.html" class="btn" tabindex="3">&gt; DEAUTH</a>
+<a href="#" class="btn out" tabindex="4" onclick="logout();return false;">[ LOGOUT ]</a>
 
 <script>
-// Auto-focus the first button (Helps with flip phone D-Pads)
-window.onload=function(){
-    setTimeout(function(){
-        document.getElementsByTagName('a')[0].focus()
-    },100);
-}
-
-function logout(){
-    sessionStorage.removeItem("_k");
-    window.location.href="/";
-}
+window.onload=function(){setTimeout(function(){var a=document.querySelector('a.btn:not(.out)');if(a)a.focus();},100);}
+function logout(){sessionStorage.removeItem("_k");window.location.href="/";}
 </script>
 </body>
 </html>

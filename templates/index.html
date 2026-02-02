@@ -1,43 +1,60 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-<title>GATEKEEPER</title>
+<title>CyberPWN — GATEKEEPER</title>
 <style>
-/* BULLETPROOF TABLE LAYOUT FOR OLD FLIP PHONES */
 *{box-sizing:border-box}
-html,body{height:100%;margin:0;padding:0;background-color:#121212;font-family:monospace;overflow:hidden;color:#AAA;}
+html,body{height:100%;margin:0;padding:0;background:#0d0d0d;font-family:monospace;overflow:hidden;color:#AAA;}
 #layout-table{width:100%;height:100%;border-collapse:collapse;}
 td.center-cell{vertical-align:middle;text-align:center;padding-bottom:20px;}
-.top-txt{font-size:9px;color:#444;margin-bottom:5px;letter-spacing:2px;font-weight:bold;}
-#d{background-color:#000;color:#FCEE0A;font-size:24px;font-weight:bold;height:45px;width:220px;border:1px solid #333;margin:0 auto 5px auto;line-height:45px;letter-spacing:4px;text-align:center;}
-#s{color:#555;font-size:11px;height:15px;margin-bottom:8px;text-transform:uppercase;font-weight:bold;text-align:center;}
+.top-txt{font-size:9px;color:#333;margin-bottom:6px;letter-spacing:3px;font-weight:bold;}
+#d{background:#000;color:#FCEE0A;font-size:24px;font-weight:bold;height:48px;width:220px;border:2px solid #2a2a2a;margin:0 auto 6px auto;line-height:48px;letter-spacing:4px;text-align:center;transition:border-color .2s, transform .1s;}
+#d.denied{animation:shake .4s ease;}
+@keyframes shake{0%,100%{transform:translateX(0)}20%{transform:translateX(-6px)}40%{transform:translateX(6px)}60%{transform:translateX(-4px)}80%{transform:translateX(4px)}}
+#s{color:#555;font-size:11px;min-height:16px;margin-bottom:8px;text-transform:uppercase;font-weight:bold;text-align:center;}
 .keypad{margin:0 auto;width:220px;}
-.keypad td{padding:2px;width:33%;}
-.b{width:100%;height:45px;background-color:#1E1E1E;color:#AAA;font-size:20px;border:1px solid #333;border-radius:0;cursor:pointer;}
-.b:focus,.b:active{background-color:#FCEE0A;color:#000;border:1px solid #FCEE0A;outline:none;}
-.cl{color:#555;} .en{color:#FCEE0A;border-color:#444;}
-.cl:focus{background-color:#333!important;color:#FFF!important;}
-.en:focus{background-color:#FCEE0A!important;color:#000!important;}
+.keypad td{padding:3px;width:33%;}
+.b{width:100%;height:46px;background:#1a1a1a;color:#AAA;font-size:20px;border:1px solid #2a2a2a;border-radius:0;cursor:pointer;transition:background .15s, color .15s;}
+.b:focus,.b:active{background:#FCEE0A;color:#000;border-color:#FCEE0A;outline:none;}
+.cl{color:#555;}.en{color:#FCEE0A;border-color:#444;}
+.cl:focus{background:#333!important;color:#FFF!important;}
+.en:focus{background:#FCEE0A!important;color:#000!important;}
 </style>
 </head>
 <body onload="_L()">
 <table id="layout-table"><tr><td class="center-cell">
-<div class="top-txt">SECURE_ACCESS // V9</div><div id="d"></div><div id="s">READY</div>
+<div class="top-txt">SECURE_ACCESS // CYBERPWN</div><div id="d"></div><div id="s">ENTER PIN</div>
 <table class="keypad" border="0" cellpadding="0" cellspacing="0">
-<tr><td><button class="b" onclick="_a('1')">1</button></td><td><button class="b" onclick="_a('2')">2</button></td><td><button class="b" onclick="_a('3')">3</button></td></tr>
-<tr><td><button class="b" onclick="_a('4')">4</button></td><td><button class="b" onclick="_a('5')">5</button></td><td><button class="b" onclick="_a('6')">6</button></td></tr>
-<tr><td><button class="b" onclick="_a('7')">7</button></td><td><button class="b" onclick="_a('8')">8</button></td><td><button class="b" onclick="_a('9')">9</button></td></tr>
-<tr><td><button class="b cl" onclick="_c()">X</button></td><td><button class="b" onclick="_a('0')">0</button></td><td><button class="b en" onclick="_v()">OK</button></td></tr>
+<tr><td><button class="b" type="button" onclick="_a('1')">1</button></td><td><button class="b" type="button" onclick="_a('2')">2</button></td><td><button class="b" type="button" onclick="_a('3')">3</button></td></tr>
+<tr><td><button class="b" type="button" onclick="_a('4')">4</button></td><td><button class="b" type="button" onclick="_a('5')">5</button></td><td><button class="b" type="button" onclick="_a('6')">6</button></td></tr>
+<tr><td><button class="b" type="button" onclick="_a('7')">7</button></td><td><button class="b" type="button" onclick="_a('8')">8</button></td><td><button class="b" type="button" onclick="_a('9')">9</button></td></tr>
+<tr><td><button class="b cl" type="button" onclick="_c()">X</button></td><td><button class="b" type="button" onclick="_a('0')">0</button></td><td><button class="b en" type="button" onclick="_v()">OK</button></td></tr>
 </table></td></tr></table>
 <script>
-var _i="",_t=1425614349; 
-function _L(){localStorage.removeItem("_l");_u();}
-function _a(n){if(_i.length<8){_i+=n;_u()}}
-function _c(){_i="";_u();_m("READY","#555")}
-function _u(){var h="";for(var j=0;j<_i.length;j++)h+="*";document.getElementById("d").innerHTML=h}
-function _m(t,c){var o=document.getElementById("s");o.innerHTML=t;o.style.color=c}
-function _z(v){var r=0;for(var q=0;q<v.length;q++){r=((r<<5)-r)+v.charCodeAt(q);r=r&r}return Math.abs(r)}
-function _v(){if(_i.length===0)return;setTimeout(function(){if(_z(_i)===_t){sessionStorage.setItem("_k","1");_m("ACCESS GRANTED","#FCEE0A");document.getElementById("d").style.borderColor="#FCEE0A";setTimeout(function(){window.location.href="success.html"},400)}else{_m("DENIED","#F00");_i="";_u()}},300)}
+var _i="",_t=1425614349;
+function _L(){localStorage.removeItem("_l");_u();_m("ENTER PIN","#555");}
+function _a(n){if(_i.length<8){_i+=n;_u();}}
+function _c(){_i="";_u();_m("ENTER PIN","#555");var d=document.getElementById("d");d.classList.remove("denied");}
+function _u(){var h="";for(var j=0;j<_i.length;j++)h+="*";document.getElementById("d").innerHTML=h;}
+function _m(t,c){var o=document.getElementById("s");o.innerHTML=t;o.style.color=c;}
+function _z(v){var r=0;for(var q=0;q<v.length;q++){r=((r<<5)-r)+v.charCodeAt(q);r=r&r;}return Math.abs(r);}
+function _v(){
+  if(_i.length===0)return;
+  var d=document.getElementById("d");
+  setTimeout(function(){
+    if(_z(_i)===_t){
+      d.classList.remove("denied");
+      sessionStorage.setItem("_k","1");
+      _m("ACCESS GRANTED","#FCEE0A");
+      d.style.borderColor="#FCEE0A";
+      setTimeout(function(){window.location.href="success.html";},500);
+    }else{
+      d.classList.add("denied");
+      _m("DENIED","#e44");_i="";_u();
+      setTimeout(function(){d.classList.remove("denied");},500);
+    }
+  },200);
+}
 </script></body></html>

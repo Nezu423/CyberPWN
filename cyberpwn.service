@@ -1,0 +1,17 @@
+[Unit]
+Description=CyberPWN Web Server
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+# Replace PROJECT_DIR with your project path (e.g. /home/w4lkm4n/Bruce or /home/w4lkm4n/Pictures/CyberPWN)
+WorkingDirectory=/home/w4lkm4n/Bruce
+ExecStart=/home/w4lkm4n/Bruce/bruce_env/bin/python /home/w4lkm4n/Bruce/server.py
+Restart=always
+RestartSec=3
+# Listen on 0.0.0.0:5000
+Environment=PYTHONUNBUFFERED=1
+
+[Install]
+WantedBy=multi-user.target
