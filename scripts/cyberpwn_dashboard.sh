@@ -1,15 +1,12 @@
 #!/bin/bash
 # cyberpwn_dashboard.sh - Colorful Armbian login dashboard
 echo -e "${MAGENTA}"
-echo " ,-----,--, ,--,        ";
-echo " | '-  -\\==Y==/-\\       ";
-echo " \\,--, '/==|==\\\` \\      ";
-echo "    /  /==/ \\==\\  \\     ";
-echo "   / -/==/   \\==\\- \\    ";
-echo "  / \`/==/     \\==\\' \\   ";
-echo " / -/==/       \\==\\- \\  ";
-echo "/ \`/==/         \\==\\' \\ ";
-echo "\`--\`-\`           '-'--' ";
+echo " _______    ";
+echo "|___  \\ \\   ";
+echo "   / / \\ \\  ";
+echo "  / /   \\ \\ ";
+echo " /_/     \\_\\";
+echo "            ";
                     
                     
                     
