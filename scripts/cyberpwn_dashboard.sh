@@ -46,7 +46,6 @@ else
 fi
 
 # Print dashboard
-clear
 echo -e "${CYAN}========= CyberPWN Armbian Dashboard =========${NC}"
 echo -e "${YELLOW}CPU Usage:   ${NC}$CPU_USAGE%"
 echo -e "${YELLOW}RAM Usage:   ${NC}$MEM_USAGE"
@@ -58,4 +57,37 @@ echo -e "${CYAN}---------------------------------------------${NC}"
 echo -e "${GREEN}To start service:   ${NC}sudo systemctl start $SERVICE"
 echo -e "${RED}To stop service:    ${NC}sudo systemctl stop $SERVICE"
 echo -e "${YELLOW}To disable service: ${NC}sudo systemctl disable $SERVICE"
+echo -e "${CYAN}=============================================${NC}\n"
+clear
+# Rotating Aphex Twin ASCII logo (simple 4-frame animation)
+logo1="   _   _\n  / \\ / \\ \n |   V   |\n |  / \\  |\n  \\_/ \\_/ "
+logo2="   _   _\n  \\ / \\ /\n |   V   |\n |  \\ /  |\n  /_\\ /_\\ "
+logo3="   _   _\n  / \\ / \\ \n |   ^   |\n |  \\ /  |\n  /_\\ /_\\ "
+logo4="   _   _\n  \\ / \\ /\n |   ^   |\n |  / \\  |\n  \\_/ \\_/ "
+logos=($logo1 "$logo2" "$logo3" "$logo4")
+
+# Animate logo
+for i in {0..3}; do
+  clear
+  echo -e "${MAGENTA}${logos[$i]}${NC}"
+  sleep 0.1
+done
+clear
+echo -e "${MAGENTA}${logos[0]}${NC}"
+
+echo -e "${CYAN}========= CyberPWN Armbian Dashboard =========${NC}"
+echo -e "${YELLOW}CPU Usage:   ${NC}$CPU_USAGE%"
+echo -e "${YELLOW}RAM Usage:   ${NC}$MEM_USAGE"
+echo -e "${YELLOW}Disk Usage:  ${NC}$DISK_USAGE"
+echo -e "${YELLOW}CPU Temp:    ${NC}$CPU_TEMP°C"
+echo -e "${MAGENTA}WiFi:        ${NC}SSID: $WIFI_SSID | IP: $WIFI_IP | Signal: $WIFI_SIGNAL dBm"
+echo -e "${BLUE}Service:     ${NC}$SERVICE_STATUS_MSG"
+echo -e "${CYAN}---------------------------------------------${NC}"
+
+# OSC 8 hyperlinks for supported terminals (will show as clickable links in some terminals)
+OSC8_START="\033]8;;"
+OSC8_END="\033]8;;\033\\"
+echo -e "${GREEN}To start service:   ${NC}${OSC8_START}command:sudo systemctl start $SERVICE${OSC8_END}sudo systemctl start $SERVICE${OSC8_START}${OSC8_END}"
+echo -e "${RED}To stop service:    ${NC}${OSC8_START}command:sudo systemctl stop $SERVICE${OSC8_END}sudo systemctl stop $SERVICE${OSC8_START}${OSC8_END}"
+echo -e "${YELLOW}To disable service: ${NC}${OSC8_START}command:sudo systemctl disable $SERVICE${OSC8_END}sudo systemctl disable $SERVICE${OSC8_START}${OSC8_END}"
 echo -e "${CYAN}=============================================${NC}\n"
