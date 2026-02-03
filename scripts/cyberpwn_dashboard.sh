@@ -59,21 +59,26 @@ echo -e "${RED}To stop service:    ${NC}sudo systemctl stop $SERVICE"
 echo -e "${YELLOW}To disable service: ${NC}sudo systemctl disable $SERVICE"
 echo -e "${CYAN}=============================================${NC}\n"
 clear
-# Rotating Aphex Twin ASCII logo (simple 4-frame animation)
-logo1="   _   _\n  / \\ / \\ \n |   V   |\n |  / \\  |\n  \\_/ \\_/ "
-logo2="   _   _\n  \\ / \\ /\n |   V   |\n |  \\ /  |\n  /_\\ /_\\ "
-logo3="   _   _\n  / \\ / \\ \n |   ^   |\n |  \\ /  |\n  /_\\ /_\\ "
-logo4="   _   _\n  \\ / \\ /\n |   ^   |\n |  / \\  |\n  \\_/ \\_/ "
-logos=($logo1 "$logo2" "$logo3" "$logo4")
 
-# Animate logo
-for i in {0..3}; do
+# Detect if running under 'watch' (WATCH variable is set by watch)
+if [ -z "$WATCH" ]; then
+  # Not under watch: show animation
+  logo1="   _   _\n  / \\ / \\ \n |   V   |\n |  / \\  |\n  \\_/ \\_/ "
+  logo2="   _   _\n  \\ / \\ /\n |   V   |\n |  \\ /  |\n  /_\\ /_\\ "
+  logo3="   _   _\n  / \\ / \\ \n |   ^   |\n |  \\ /  |\n  /_\\ /_\\ "
+  logo4="   _   _\n  \\ / \\ /\n |   ^   |\n |  / \\  |\n  \\_/ \\_/ "
+  logos=($logo1 "$logo2" "$logo3" "$logo4")
+  for i in {0..3}; do
+    clear
+    echo -e "${MAGENTA}${logos[$i]}${NC}"
+    sleep 0.1
+  done
   clear
-  echo -e "${MAGENTA}${logos[$i]}${NC}"
-  sleep 0.1
-done
-clear
-echo -e "${MAGENTA}${logos[0]}${NC}"
+  echo -e "${MAGENTA}${logos[0]}${NC}"
+else
+  # Under watch: show static logo, no clear
+  echo -e "${MAGENTA}   _   _\n  / \\ / \\ \n |   V   |\n |  / \\  |\n  \\_/ \\_/ ${NC}"
+fi
 
 echo -e "${CYAN}========= CyberPWN Armbian Dashboard =========${NC}"
 echo -e "${YELLOW}CPU Usage:   ${NC}$CPU_USAGE%"
