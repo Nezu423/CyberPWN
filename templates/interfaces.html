@@ -1,46 +1,121 @@
+<!-- Already LG 125DL compatible -->
+
 <!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <title>Interface Status</title>
-    <link rel="stylesheet" href="/static/nord.css">
+    <meta name="viewport" content="width=240, height=320, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Interfaces</title>
     <style>
-        body { background: #2E3440; color: #D8DEE9; font-family: sans-serif; }
-        .container { max-width: 600px; margin: 40px auto; padding: 24px; background: #3B4252; border-radius: 8px; }
-        h1 { color: #88C0D0; }
-        .iface { margin-bottom: 16px; padding: 12px; background: #434C5E; border-radius: 6px; }
-        .up { color: #A3BE8C; }
-        .down { color: #BF616A; }
-        button { background: #88C0D0; color: #2E3440; border: none; padding: 8px 16px; border-radius: 4px; cursor: pointer; }
-        button:disabled { background: #4C566A; color: #D8DEE9; }
+        html, body {
+            width: 240px;
+            height: 320px;
+            margin: 0;
+            padding: 0;
+            background: #222;
+            color: #eee;
+            font-family: Arial, Helvetica, sans-serif;
+            overflow-y: auto;
+            -webkit-text-size-adjust: none;
+            text-size-adjust: none;
+        }
+        .container {
+            width: 224px;
+            margin: 8px auto 0 auto;
+            padding: 8px 4px 12px 4px;
+            background: #333;
+            border-radius: 8px;
+        }
+        h1 {
+            color: #0cf;
+            font-size: 16px;
+            margin: 0 0 8px 0;
+            text-align: center;
+        }
+        .iface {
+            display: block;
+            margin-bottom: 10px;
+            padding: 10px 4px;
+            background: #444;
+            border-radius: 6px;
+            font-size: 15px;
+        }
+        .up { color: #0f0; font-weight: bold; }
+        .down { color: #f00; font-weight: bold; }
+        button {
+            background: #0cf;
+            color: #222;
+            border: none;
+            padding: 8px 18px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 15px;
+            font-weight: bold;
+        }
+        button:disabled {
+            background: #666;
+            color: #ccc;
+        }
+        .back {
+            display: block;
+            margin: 12px auto 0 auto;
+            text-align: center;
+            color: #0cf;
+            background: #444;
+            border-radius: 4px;
+            padding: 10px 0;
+            width: 100%;
+            text-decoration: none;
+            font-size: 15px;
+            font-weight: bold;
+        }
     </style>
 </head>
 <body>
     <div class="container">
-        <h1>Network Interfaces</h1>
+        <h1>Interfaces</h1>
         <div id="iface-list"></div>
+        <a href="success.html" class="back">&lt; DASHBOARD</a>
     </div>
     <script>
-    async function fetchStatus() {
-        const res = await fetch('/api/interfaces');
-        const data = await res.json();
-        const list = document.getElementById('iface-list');
-        list.innerHTML = '';
-        data.forEach(iface => {
-            const div = document.createElement('div');
-            div.className = 'iface';
-            div.innerHTML = `<b>${iface.name}</b> <span class="${iface.state}">${iface.state.toUpperCase()}</span> ` +
-                (iface.state === 'down' ? `<button onclick="bringUp('${iface.name}')">Bring Up</button>` : '<button disabled>Up</button>');
-            list.appendChild(div);
-        });
+    function fetchStatus() {
+        var x = new XMLHttpRequest();
+        x.open('GET', '/api/interfaces', true);
+        x.onreadystatechange = function() {
+            if (x.readyState !== 4) return;
+            if (x.status === 200) {
+                try {
+                    var data = JSON.parse(x.responseText);
+                    var list = document.getElementById('iface-list');
+                    list.innerHTML = '';
+                    for (var i = 0; i < data.length; i++) {
+                        var iface = data[i];
+                        var div = document.createElement('div');
+                        div.className = 'iface';
+                        div.innerHTML = '<div style="margin-bottom:4px;"><b>' + iface.name + '</b></div>' +
+                            '<div style="margin-bottom:6px;"><span class="' + iface.state + '">' + iface.state.toUpperCase() + '</span></div>' +
+                            (iface.state === 'down' ? '<button onclick="bringUp(\'' + iface.name + '\')">UP</button>' : '<button disabled>UP</button>');
+                        list.appendChild(div);
+                    }
+                } catch(e) {
+                    document.getElementById('iface-list').innerHTML = 'Error parsing data.';
+                }
+            } else {
+                document.getElementById('iface-list').innerHTML = 'Error loading interfaces.';
+            }
+        };
+        x.send();
     }
-    async function bringUp(name) {
-        await fetch('/api/bringup', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ name })
-        });
-        setTimeout(fetchStatus, 1000);
+    function bringUp(name) {
+        var x = new XMLHttpRequest();
+        x.open('POST', '/api/bringup', true);
+        x.setRequestHeader('Content-Type', 'application/json');
+        x.onreadystatechange = function() {
+            if (x.readyState === 4) {
+                setTimeout(fetchStatus, 1000);
+            }
+        };
+        x.send(JSON.stringify({ name: name }));
     }
     setInterval(fetchStatus, 2000);
     fetchStatus();
