@@ -48,5 +48,234 @@ body{padding:20px 10px 30px;}
     <a class="acc-btn evil" href="evil_twin.html">&gt; EVIL TWIN</a>
     <a class="acc-btn deauth" href="deauth.html">&gt; DEAUTH</a>
 </div>
+
+<!-- Interface Management Section -->
+<div style="margin-top:30px;border-top:1px solid #222;padding-top:20px;">
+    <div class="head" style="border-bottom:none;margin-bottom:12px;">
+        <span class="t1" style="font-size:13px;">INTERFACE STATUS</span>
+        <button onclick="refreshInterfaces()" style="background:#000;color:#fff;border:1px solid #fff;padding:5px 10px;font-size:11px;cursor:pointer;">REFRESH</button>
+    </div>
+    
+    <!-- Evil Twin Status -->
+    <div id="evil-twin-status" style="background:#111;border:1px solid #ffd600;padding:12px;margin-bottom:12px;border-radius:4px;">
+        <div style="color:#ffd600;font-weight:bold;margin-bottom:8px;">EVIL TWIN AP</div>
+        <div id="evil-twin-info" style="font-size:12px;color:#ccc;">Loading...</div>
+    </div>
+    
+    <!-- Interface Status Cards -->
+    <div id="interfaces-container" style="display:flex;flex-direction:column;gap:10px;">
+        <div style="color:#ccc;font-size:12px;text-align:center;">Loading interfaces...</div>
+    </div>
+</div>
+
+<style>
+.iface-card {
+    background:#111;
+    border:1px solid #333;
+    padding:12px;
+    border-radius:4px;
+    font-size:12px;
+}
+.iface-header {
+    display:flex;
+    justify-content:space-between;
+    align-items:center;
+    margin-bottom:8px;
+}
+.iface-name {
+    color:#00ffe7;
+    font-weight:bold;
+    font-size:13px;
+}
+.iface-status {
+    padding:3px 8px;
+    border-radius:3px;
+    font-size:10px;
+    font-weight:bold;
+}
+.status-up {background:#0f0;color:#000;}
+.status-down {background:#f00;color:#fff;}
+.status-monitor {background:#ffd600;color:#000;}
+.status-managed {background:#0cf;color:#000;}
+.status-master {background:#ff00c8;color:#fff;}
+.iface-details {
+    color:#999;
+    font-size:11px;
+    line-height:1.6;
+    margin-bottom:8px;
+}
+.iface-controls {
+    display:flex;
+    gap:6px;
+    flex-wrap:wrap;
+}
+.ctrl-btn {
+    padding:6px 12px;
+    border:1px solid #fff;
+    background:#000;
+    color:#fff;
+    font-size:11px;
+    cursor:pointer;
+    border-radius:3px;
+    transition:all .15s;
+}
+.ctrl-btn:hover,.ctrl-btn:focus {
+    background:#fff;
+    color:#000;
+    outline:none;
+}
+.ctrl-btn:disabled {
+    opacity:0.5;
+    cursor:not-allowed;
+}
+.ctrl-btn.monitor {border-color:#ffd600;color:#ffd600;}
+.ctrl-btn.monitor:hover,.ctrl-btn.monitor:focus {background:#ffd600;color:#000;}
+.ctrl-btn.up {border-color:#0f0;color:#0f0;}
+.ctrl-btn.up:hover,.ctrl-btn.up:focus {background:#0f0;color:#000;}
+.ctrl-btn.down {border-color:#f00;color:#f00;}
+.ctrl-btn.down:hover,.ctrl-btn.down:focus {background:#f00;color:#fff;}
+</style>
+
+<script>
+function refreshInterfaces() {
+    fetch('/api/interfaces/status')
+        .then(r => r.json())
+        .then(data => {
+            if (data.error) {
+                document.getElementById('interfaces-container').innerHTML = '<div style="color:#f00;">Error: ' + data.error + '</div>';
+                return;
+            }
+            
+            // Update Evil Twin Status
+            const et = data.evil_twin || {};
+            const etInfo = document.getElementById('evil-twin-info');
+            if (et.running) {
+                etInfo.innerHTML = '<span style="color:#0f0;">RUNNING</span><br>' +
+                    'SSID: <span style="color:#fff;">' + (et.ssid || 'Unknown') + '</span><br>' +
+                    'Interface: <span style="color:#fff;">' + (et.interface || 'Unknown') + '</span>';
+            } else {
+                etInfo.innerHTML = '<span style="color:#999;">STOPPED</span>';
+            }
+            
+            // Update Interfaces
+            const container = document.getElementById('interfaces-container');
+            const interfaces = data.interfaces || {};
+            
+            if (Object.keys(interfaces).length === 0) {
+                container.innerHTML = '<div style="color:#999;text-align:center;">No interfaces found</div>';
+                return;
+            }
+            
+            let html = '';
+            for (const [name, status] of Object.entries(interfaces)) {
+                if (!status.exists) continue;
+                
+                const modeClass = status.mode === 'monitor' ? 'status-monitor' : 
+                                 status.mode === 'master' ? 'status-master' : 
+                                 status.mode === 'managed' ? 'status-managed' : '';
+                const upClass = status.up ? 'status-up' : 'status-down';
+                
+                html += '<div class="iface-card">';
+                html += '<div class="iface-header">';
+                html += '<span class="iface-name">' + name.toUpperCase() + '</span>';
+                html += '<span class="iface-status ' + upClass + '">' + (status.up ? 'UP' : 'DOWN') + '</span>';
+                if (status.mode !== 'unknown') {
+                    html += '<span class="iface-status ' + modeClass + '">' + status.mode.toUpperCase() + '</span>';
+                }
+                html += '</div>';
+                
+                html += '<div class="iface-details">';
+                if (status.mac) html += 'MAC: ' + status.mac + '<br>';
+                if (status.ip) html += 'IP: ' + status.ip + '<br>';
+                if (status.ssid) html += 'SSID: ' + status.ssid + '<br>';
+                if (status.channel) html += 'Channel: ' + status.channel + '<br>';
+                if (status.frequency) html += 'Freq: ' + status.frequency + '<br>';
+                if (status.signal) html += 'Signal: ' + status.signal;
+                html += '</div>';
+                
+                html += '<div class="iface-controls">';
+                if (status.mode === 'monitor') {
+                    html += '<button class="ctrl-btn monitor" onclick="stopMonitor(\'' + name + '\')">STOP MON</button>';
+                } else if (status.mode === 'managed' || status.mode === 'unknown') {
+                    html += '<button class="ctrl-btn monitor" onclick="startMonitor(\'' + name + '\')">START MON</button>';
+                }
+                if (status.up) {
+                    html += '<button class="ctrl-btn down" onclick="ifaceDown(\'' + name + '\')">DOWN</button>';
+                } else {
+                    html += '<button class="ctrl-btn up" onclick="ifaceUp(\'' + name + '\')">UP</button>';
+                }
+                html += '</div>';
+                html += '</div>';
+            }
+            
+            container.innerHTML = html;
+        })
+        .catch(e => {
+            document.getElementById('interfaces-container').innerHTML = '<div style="color:#f00;">Error loading: ' + e + '</div>';
+        });
+}
+
+function startMonitor(iface) {
+    if (!confirm('Put ' + iface + ' into monitor mode?')) return;
+    fetch('/api/interfaces/' + iface + '/monitor/start', {method:'POST'})
+        .then(r => r.json())
+        .then(data => {
+            if (data.ok) {
+                alert('Monitor mode started: ' + (data.monitor_interface || iface));
+                refreshInterfaces();
+            } else {
+                alert('Error: ' + (data.error || 'Failed'));
+            }
+        })
+        .catch(e => alert('Error: ' + e));
+}
+
+function stopMonitor(iface) {
+    if (!confirm('Stop monitor mode on ' + iface + '?')) return;
+    fetch('/api/interfaces/' + iface + '/monitor/stop', {method:'POST'})
+        .then(r => r.json())
+        .then(data => {
+            if (data.ok) {
+                alert('Monitor mode stopped');
+                refreshInterfaces();
+            } else {
+                alert('Error: ' + (data.error || 'Failed'));
+            }
+        })
+        .catch(e => alert('Error: ' + e));
+}
+
+function ifaceUp(iface) {
+    fetch('/api/interfaces/' + iface + '/up', {method:'POST'})
+        .then(r => r.json())
+        .then(data => {
+            if (data.ok) {
+                refreshInterfaces();
+            } else {
+                alert('Error: ' + (data.error || 'Failed'));
+            }
+        })
+        .catch(e => alert('Error: ' + e));
+}
+
+function ifaceDown(iface) {
+    if (!confirm('Bring ' + iface + ' down?')) return;
+    fetch('/api/interfaces/' + iface + '/down', {method:'POST'})
+        .then(r => r.json())
+        .then(data => {
+            if (data.ok) {
+                refreshInterfaces();
+            } else {
+                alert('Error: ' + (data.error || 'Failed'));
+            }
+        })
+        .catch(e => alert('Error: ' + e));
+}
+
+// Auto-refresh every 3 seconds
+setInterval(refreshInterfaces, 3000);
+refreshInterfaces();
+</script>
+
 </body>
 </html>

