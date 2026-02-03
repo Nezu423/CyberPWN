@@ -60,25 +60,27 @@ echo -e "${YELLOW}To disable service: ${NC}sudo systemctl disable $SERVICE"
 echo -e "${CYAN}=============================================${NC}\n"
 clear
 
-# Detect if running under 'watch' (WATCH variable is set by watch)
-if [ -z "$WATCH" ]; then
-  # Not under watch: show animation
-  logo1="   _   _\n  / \\ / \\ \n |   V   |\n |  / \\  |\n  \\_/ \\_/ "
-  logo2="   _   _\n  \\ / \\ /\n |   V   |\n |  \\ /  |\n  /_\\ /_\\ "
-  logo3="   _   _\n  / \\ / \\ \n |   ^   |\n |  \\ /  |\n  /_\\ /_\\ "
-  logo4="   _   _\n  \\ / \\ /\n |   ^   |\n |  / \\  |\n  \\_/ \\_/ "
-  logos=($logo1 "$logo2" "$logo3" "$logo4")
-  for i in {0..3}; do
-    clear
-    echo -e "${MAGENTA}${logos[$i]}${NC}"
-    sleep 0.1
-  done
-  clear
-  echo -e "${MAGENTA}${logos[0]}${NC}"
-else
-  # Under watch: show static logo, no clear
-  echo -e "${MAGENTA}   _   _\n  / \\ / \\ \n |   V   |\n |  / \\  |\n  \\_/ \\_/ ${NC}"
-fi
+# Always show static logo at the top (no animation, works with or without watch)
+# Large ASCII art for '7\'
+echo -e "${MAGENTA}"
+echo "  ________  "
+echo " /  _____/  "
+echo "/  /       "
+echo "  /        "
+echo " /         "
+echo "/_________ "
+echo "\\         "
+echo " \\        "
+echo "  \\       "
+echo "   \\      "
+echo "    \\     "
+echo "     \\    "
+echo "      \\   "
+echo "       \\  "
+echo "        \\ "
+echo "         \\"
+echo -e "${NC}"
+# For color with watch, use: watch -c -n 2 bash ~/Pictures/CyberPWN/scripts/cyberpwn_dashboard.sh
 
 echo -e "${CYAN}========= CyberPWN Armbian Dashboard =========${NC}"
 echo -e "${YELLOW}CPU Usage:   ${NC}$CPU_USAGE%"
