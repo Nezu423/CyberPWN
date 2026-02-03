@@ -57,20 +57,39 @@
 <div class="result" id="result">Loading...</div>
 <button class="btn" onclick="location.href='success.html'">Back to Dashboard</button>
 <script>
-fetch('/api/sniffer/raw_capture', {method:'POST'})
-  .then(r=>r.json())
-  .then(data=>{
-    let html = '';
-    if(data.ok) {
-      html = `<b>${data.output}</b>`;
-    } else {
-      html = `<span style='color:#BF616A;'>Error: ${data.error}</span>`;
+function apiJson(method, url, cb) {
+  var xhr = new XMLHttpRequest();
+  xhr.open(method, url, true);
+  xhr.onreadystatechange = function() {
+    if (xhr.readyState !== 4) return;
+    if (xhr.status < 200 || xhr.status >= 300) {
+      cb(new Error('HTTP ' + xhr.status), null);
+      return;
     }
+    try {
+      cb(null, JSON.parse(xhr.responseText));
+    } catch (e) {
+      cb(e, null);
+    }
+  };
+  xhr.send(null);
+}
+
+apiJson('POST', '/api/sniffer/raw_capture', function(err, data) {
+  var html = '';
+  if (err) {
+    html = '<span style="color:#BF616A;">Error: ' + err + '</span>';
     document.getElementById('result').innerHTML = html;
-  })
-  .catch(e=>{
-    document.getElementById('result').innerHTML = '<span style="color:#BF616A;">Error: '+e+'</span>';
-  });
+    return;
+  }
+  if (data && data.ok) {
+    html = '<b>' + (data.output || '') + '</b>';
+    if (data.file) html += '<br><small>' + data.file + '</small>';
+  } else {
+    html = '<span style="color:#BF616A;">Error: ' + ((data && data.error) ? data.error : 'Unknown') + '</span>';
+  }
+  document.getElementById('result').innerHTML = html;
+});
 </script>
 </body>
 </html>

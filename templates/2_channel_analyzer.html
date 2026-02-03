@@ -57,23 +57,44 @@
 <div class="result" id="result">Loading...</div>
 <button class="btn" onclick="location.href='success.html'">Back to Dashboard</button>
 <script>
+function apiJson(method, url, cb) {
+  var xhr = new XMLHttpRequest();
+  xhr.open(method, url, true);
+  xhr.onreadystatechange = function() {
+    if (xhr.readyState !== 4) return;
+    if (xhr.status < 200 || xhr.status >= 300) {
+      cb(new Error('HTTP ' + xhr.status), null);
+      return;
+    }
+    try {
+      cb(null, JSON.parse(xhr.responseText));
+    } catch (e) {
+      cb(e, null);
+    }
+  };
+  xhr.send(null);
+}
+
 function updateChannel() {
-  fetch('/api/sniffer/channel_analyzer', {method:'POST'})
-    .then(r=>r.json())
-    .then(data=>{
-      let html = '';
-      if(data.ok) {
-        html += `<b>Channels:</b><ul style='padding-left:16px;'>`;
-        data.channels.forEach(ch => html += `<li>${ch}</li>`);
-        html += '</ul>';
-      } else {
-        html = `<span style='color:#BF616A;'>Error: ${data.error}</span>`;
-      }
+  apiJson('POST', '/api/sniffer/channel_analyzer', function(err, data) {
+    var html = '';
+    if (err) {
+      html = '<span style="color:#BF616A;">Error: ' + err + '</span>';
       document.getElementById('result').innerHTML = html;
-    })
-    .catch(e=>{
-      document.getElementById('result').innerHTML = '<span style="color:#BF616A;">Error: '+e+'</span>';
-    });
+      return;
+    }
+    if (data && data.ok) {
+      html += '<b>Channels:</b><ul style="padding-left:16px;">';
+      var i;
+      for (i = 0; i < (data.channels || []).length; i++) {
+        html += '<li>' + data.channels[i] + '</li>';
+      }
+      html += '</ul>';
+    } else {
+      html = '<span style="color:#BF616A;">Error: ' + ((data && data.error) ? data.error : 'Unknown') + '</span>';
+    }
+    document.getElementById('result').innerHTML = html;
+  });
 }
 setInterval(updateChannel, 2000);
 updateChannel();

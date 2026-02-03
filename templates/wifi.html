@@ -154,139 +154,163 @@
 </style>
 
 <script>
+function apiJson(method, url, cb) {
+    var xhr = new XMLHttpRequest();
+    xhr.open(method, url, true);
+    xhr.onreadystatechange = function() {
+        if (xhr.readyState !== 4) return;
+        if (xhr.status < 200 || xhr.status >= 300) {
+            cb(new Error('HTTP ' + xhr.status), null);
+            return;
+        }
+        try {
+            cb(null, JSON.parse(xhr.responseText));
+        } catch (e) {
+            cb(e, null);
+        }
+    };
+    xhr.send(null);
+}
+
 function refreshInterfaces() {
-    fetch('/api/interfaces/status')
-        .then(r => r.json())
-        .then(data => {
-            if (data.error) {
-                document.getElementById('interfaces-container').innerHTML = '<div style="color:#f00;">Error: ' + data.error + '</div>';
-                return;
+    apiJson('GET', '/api/interfaces/status', function(err, data) {
+        if (err) {
+            document.getElementById('interfaces-container').innerHTML = '<div style="color:#f00;">Error loading: ' + err + '</div>';
+            return;
+        }
+        if (data && data.error) {
+            document.getElementById('interfaces-container').innerHTML = '<div style="color:#f00;">Error: ' + data.error + '</div>';
+            return;
+        }
+
+        // Update Evil Twin Status
+        var et = (data && data.evil_twin) ? data.evil_twin : {};
+        var etInfo = document.getElementById('evil-twin-info');
+        if (et && et.running) {
+            etInfo.innerHTML = '<span style="color:#0f0;">RUNNING</span><br>' +
+                'SSID: <span style="color:#fff;">' + (et.ssid || 'Unknown') + '</span><br>' +
+                'Interface: <span style="color:#fff;">' + (et.interface || 'Unknown') + '</span>';
+        } else {
+            etInfo.innerHTML = '<span style="color:#999;">STOPPED</span>';
+        }
+
+        // Update Interfaces
+        var container = document.getElementById('interfaces-container');
+        var interfaces = (data && data.interfaces) ? data.interfaces : {};
+        var hasAny = false;
+        for (var k in interfaces) { if (interfaces.hasOwnProperty(k)) { hasAny = true; break; } }
+        if (!hasAny) {
+            container.innerHTML = '<div style="color:#999;text-align:center;">No interfaces found</div>';
+            return;
+        }
+
+        var html = '';
+        for (var name in interfaces) {
+            if (!interfaces.hasOwnProperty(name)) continue;
+            var status = interfaces[name] || {};
+            if (!status.exists) continue;
+
+            var modeClass = status.mode === 'monitor' ? 'status-monitor' :
+                            status.mode === 'master' ? 'status-master' :
+                            status.mode === 'managed' ? 'status-managed' : '';
+            var upClass = status.up ? 'status-up' : 'status-down';
+
+            html += '<div class="iface-card">';
+            html += '<div class="iface-header">';
+            html += '<span class="iface-name">' + String(name).toUpperCase() + '</span>';
+            html += '<span class="iface-status ' + upClass + '">' + (status.up ? 'UP' : 'DOWN') + '</span>';
+            if (status.mode && status.mode !== 'unknown') {
+                html += '<span class="iface-status ' + modeClass + '">' + String(status.mode).toUpperCase() + '</span>';
             }
-            
-            // Update Evil Twin Status
-            const et = data.evil_twin || {};
-            const etInfo = document.getElementById('evil-twin-info');
-            if (et.running) {
-                etInfo.innerHTML = '<span style="color:#0f0;">RUNNING</span><br>' +
-                    'SSID: <span style="color:#fff;">' + (et.ssid || 'Unknown') + '</span><br>' +
-                    'Interface: <span style="color:#fff;">' + (et.interface || 'Unknown') + '</span>';
+            html += '</div>';
+
+            html += '<div class="iface-details">';
+            if (status.mac) html += 'MAC: ' + status.mac + '<br>';
+            if (status.ip) html += 'IP: ' + status.ip + '<br>';
+            if (status.ssid) html += 'SSID: ' + status.ssid + '<br>';
+            if (status.channel) html += 'Channel: ' + status.channel + '<br>';
+            if (status.frequency) html += 'Freq: ' + status.frequency + '<br>';
+            if (status.signal) html += 'Signal: ' + status.signal;
+            html += '</div>';
+
+            html += '<div class="iface-controls">';
+            if (status.mode === 'monitor') {
+                html += '<button class="ctrl-btn monitor" onclick="stopMonitor(\'' + name + '\')">STOP MON</button>';
+            } else if (status.mode === 'managed' || status.mode === 'unknown' || !status.mode) {
+                html += '<button class="ctrl-btn monitor" onclick="startMonitor(\'' + name + '\')">START MON</button>';
+            }
+            if (status.up) {
+                html += '<button class="ctrl-btn down" onclick="ifaceDown(\'' + name + '\')">DOWN</button>';
             } else {
-                etInfo.innerHTML = '<span style="color:#999;">STOPPED</span>';
+                html += '<button class="ctrl-btn up" onclick="ifaceUp(\'' + name + '\')">UP</button>';
             }
-            
-            // Update Interfaces
-            const container = document.getElementById('interfaces-container');
-            const interfaces = data.interfaces || {};
-            
-            if (Object.keys(interfaces).length === 0) {
-                container.innerHTML = '<div style="color:#999;text-align:center;">No interfaces found</div>';
-                return;
-            }
-            
-            let html = '';
-            for (const [name, status] of Object.entries(interfaces)) {
-                if (!status.exists) continue;
-                
-                const modeClass = status.mode === 'monitor' ? 'status-monitor' : 
-                                 status.mode === 'master' ? 'status-master' : 
-                                 status.mode === 'managed' ? 'status-managed' : '';
-                const upClass = status.up ? 'status-up' : 'status-down';
-                
-                html += '<div class="iface-card">';
-                html += '<div class="iface-header">';
-                html += '<span class="iface-name">' + name.toUpperCase() + '</span>';
-                html += '<span class="iface-status ' + upClass + '">' + (status.up ? 'UP' : 'DOWN') + '</span>';
-                if (status.mode !== 'unknown') {
-                    html += '<span class="iface-status ' + modeClass + '">' + status.mode.toUpperCase() + '</span>';
-                }
-                html += '</div>';
-                
-                html += '<div class="iface-details">';
-                if (status.mac) html += 'MAC: ' + status.mac + '<br>';
-                if (status.ip) html += 'IP: ' + status.ip + '<br>';
-                if (status.ssid) html += 'SSID: ' + status.ssid + '<br>';
-                if (status.channel) html += 'Channel: ' + status.channel + '<br>';
-                if (status.frequency) html += 'Freq: ' + status.frequency + '<br>';
-                if (status.signal) html += 'Signal: ' + status.signal;
-                html += '</div>';
-                
-                html += '<div class="iface-controls">';
-                if (status.mode === 'monitor') {
-                    html += '<button class="ctrl-btn monitor" onclick="stopMonitor(\'' + name + '\')">STOP MON</button>';
-                } else if (status.mode === 'managed' || status.mode === 'unknown') {
-                    html += '<button class="ctrl-btn monitor" onclick="startMonitor(\'' + name + '\')">START MON</button>';
-                }
-                if (status.up) {
-                    html += '<button class="ctrl-btn down" onclick="ifaceDown(\'' + name + '\')">DOWN</button>';
-                } else {
-                    html += '<button class="ctrl-btn up" onclick="ifaceUp(\'' + name + '\')">UP</button>';
-                }
-                html += '</div>';
-                html += '</div>';
-            }
-            
-            container.innerHTML = html;
-        })
-        .catch(e => {
-            document.getElementById('interfaces-container').innerHTML = '<div style="color:#f00;">Error loading: ' + e + '</div>';
-        });
+            html += '</div>';
+            html += '</div>';
+        }
+
+        container.innerHTML = html;
+    });
 }
 
 function startMonitor(iface) {
     if (!confirm('Put ' + iface + ' into monitor mode?')) return;
-    fetch('/api/interfaces/' + iface + '/monitor/start', {method:'POST'})
-        .then(r => r.json())
-        .then(data => {
-            if (data.ok) {
-                alert('Monitor mode started: ' + (data.monitor_interface || iface));
-                refreshInterfaces();
-            } else {
-                alert('Error: ' + (data.error || 'Failed'));
-            }
-        })
-        .catch(e => alert('Error: ' + e));
+    apiJson('POST', '/api/interfaces/' + encodeURIComponent(iface) + '/monitor/start', function(err, data) {
+        if (err) {
+            alert('Error: ' + err);
+            return;
+        }
+        if (data && data.ok) {
+            alert('Monitor mode started: ' + (data.monitor_interface || iface));
+            refreshInterfaces();
+        } else {
+            alert('Error: ' + ((data && data.error) ? data.error : 'Failed'));
+        }
+    });
 }
 
 function stopMonitor(iface) {
     if (!confirm('Stop monitor mode on ' + iface + '?')) return;
-    fetch('/api/interfaces/' + iface + '/monitor/stop', {method:'POST'})
-        .then(r => r.json())
-        .then(data => {
-            if (data.ok) {
-                alert('Monitor mode stopped');
-                refreshInterfaces();
-            } else {
-                alert('Error: ' + (data.error || 'Failed'));
-            }
-        })
-        .catch(e => alert('Error: ' + e));
+    apiJson('POST', '/api/interfaces/' + encodeURIComponent(iface) + '/monitor/stop', function(err, data) {
+        if (err) {
+            alert('Error: ' + err);
+            return;
+        }
+        if (data && data.ok) {
+            alert('Monitor mode stopped');
+            refreshInterfaces();
+        } else {
+            alert('Error: ' + ((data && data.error) ? data.error : 'Failed'));
+        }
+    });
 }
 
 function ifaceUp(iface) {
-    fetch('/api/interfaces/' + iface + '/up', {method:'POST'})
-        .then(r => r.json())
-        .then(data => {
-            if (data.ok) {
-                refreshInterfaces();
-            } else {
-                alert('Error: ' + (data.error || 'Failed'));
-            }
-        })
-        .catch(e => alert('Error: ' + e));
+    apiJson('POST', '/api/interfaces/' + encodeURIComponent(iface) + '/up', function(err, data) {
+        if (err) {
+            alert('Error: ' + err);
+            return;
+        }
+        if (data && data.ok) {
+            refreshInterfaces();
+        } else {
+            alert('Error: ' + ((data && data.error) ? data.error : 'Failed'));
+        }
+    });
 }
 
 function ifaceDown(iface) {
     if (!confirm('Bring ' + iface + ' down?')) return;
-    fetch('/api/interfaces/' + iface + '/down', {method:'POST'})
-        .then(r => r.json())
-        .then(data => {
-            if (data.ok) {
-                refreshInterfaces();
-            } else {
-                alert('Error: ' + (data.error || 'Failed'));
-            }
-        })
-        .catch(e => alert('Error: ' + e));
+    apiJson('POST', '/api/interfaces/' + encodeURIComponent(iface) + '/down', function(err, data) {
+        if (err) {
+            alert('Error: ' + err);
+            return;
+        }
+        if (data && data.ok) {
+            refreshInterfaces();
+        } else {
+            alert('Error: ' + ((data && data.error) ? data.error : 'Failed'));
+        }
+    });
 }
 
 // Auto-refresh every 3 seconds

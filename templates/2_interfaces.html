@@ -111,43 +111,73 @@
         <a href="success.html" class="back">&lt; DASHBOARD</a>
     </div>
     <script>
-    function fetchStatus() {
-        fetch('/api/interfaces/status')
-            .then(r => r.json())
-            .then(data => {
-                let html = '';
-                if (data.interfaces) {
-                    for (const [name, info] of Object.entries(data.interfaces)) {
-                        html += `<div class='iface'><div><b>${name}</b></div>`;
-                        html += `<div class='info'>Type: ${info.type || 'N/A'} | MAC: ${info.mac || 'N/A'}</div>`;
-                        html += `<div>Status: <span class='${info.state}'>${info.state ? info.state.toUpperCase() : 'UNKNOWN'}</span></div>`;
-                        html += `<button style='margin-top:6px;padding:6px 12px;background:#222;color:#0cf;border:1px solid #0cf;border-radius:4px;cursor:pointer;' onclick='enableMonitor("${name}")'>Enable Monitor Mode</button>`;
-                        html += `</div>`;
-                    }
-                } else {
-                    html = 'No interface data.';
-                }
-                document.getElementById('iface-list').innerHTML = html;
-            })
-            .catch(e => {
-                document.getElementById('iface-list').innerHTML = 'Error loading interfaces.';
-            });
+    function apiJson(method, url, cb) {
+        var xhr = new XMLHttpRequest();
+        xhr.open(method, url, true);
+        xhr.onreadystatechange = function() {
+            if (xhr.readyState !== 4) return;
+            if (xhr.status < 200 || xhr.status >= 300) {
+                cb(new Error('HTTP ' + xhr.status), null);
+                return;
+            }
+            try {
+                cb(null, JSON.parse(xhr.responseText));
+            } catch (e) {
+                cb(e, null);
+            }
+        };
+        xhr.send(null);
     }
+
+    function esc(s) {
+        s = (s === null || s === undefined) ? '' : String(s);
+        return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');
+    }
+
+    function fetchStatus() {
+        apiJson('GET', '/api/interfaces/status', function(err, data) {
+            if (err) {
+                document.getElementById('iface-list').innerHTML = 'Error loading interfaces.';
+                return;
+            }
+            var html = '';
+            var interfaces = data && data.interfaces ? data.interfaces : null;
+            if (interfaces) {
+                for (var name in interfaces) {
+                    if (!interfaces.hasOwnProperty(name)) continue;
+                    var info = interfaces[name] || {};
+                    var stateText = info.state ? String(info.state).toUpperCase() : 'UNKNOWN';
+                    var stateClass = info.state ? esc(info.state) : '';
+                    html += "<div class='iface'><div><b>" + esc(name) + "</b></div>";
+                    html += "<div class='info'>Type: " + esc(info.type || 'N/A') + " | MAC: " + esc(info.mac || 'N/A') + "</div>";
+                    html += "<div>Status: <span class='" + stateClass + "'>" + esc(stateText) + "</span></div>";
+                    html += "<button style='margin-top:6px;padding:6px 12px;background:#222;color:#0cf;border:1px solid #0cf;border-radius:4px;cursor:pointer;' onclick=\"enableMonitor('" + esc(name) + "')\">Enable Monitor Mode</button>";
+                    html += "</div>";
+                }
+            } else {
+                html = 'No interface data.';
+            }
+            document.getElementById('iface-list').innerHTML = html;
+        });
+    }
+
+    function enableMonitor(iface) {
+        if (!confirm('Enable monitor mode on ' + iface + '?')) return;
+        apiJson('POST', '/api/interfaces/' + encodeURIComponent(iface) + '/monitor/start', function(err, data) {
+            if (err) {
+                alert('Error: ' + err);
+                return;
+            }
+            if (data && data.ok) {
+                alert('Monitor mode enabled: ' + (data.monitor_interface || iface));
+                fetchStatus();
+            } else {
+                alert('Error: ' + ((data && data.error) ? data.error : 'Failed'));
+            }
+        });
+    }
+
     setInterval(fetchStatus, 2000);
-        function enableMonitor(iface) {
-            if (!confirm('Enable monitor mode on ' + iface + '?')) return;
-            fetch('/api/interfaces/' + iface + '/monitor/start', {method:'POST'})
-                .then(r => r.json())
-                .then(data => {
-                    if (data.ok) {
-                        alert('Monitor mode enabled: ' + (data.monitor_interface || iface));
-                        fetchStatus();
-                    } else {
-                        alert('Error: ' + (data.error || 'Failed'));
-                    }
-                })
-                .catch(e => alert('Error: ' + e));
-        }
     fetchStatus();
     </script>
 </body>

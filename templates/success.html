@@ -100,8 +100,15 @@
 </style>
 <script>
 function showTab(tab){
-  document.querySelectorAll('.tab-btn').forEach(btn=>btn.classList.remove('active'));
-  document.querySelectorAll('.tab-content').forEach(sec=>sec.style.display='none');
+  var btns = document.querySelectorAll('.tab-btn');
+  var secs = document.querySelectorAll('.tab-content');
+  var i;
+  for (i = 0; i < btns.length; i++) {
+    btns[i].classList.remove('active');
+  }
+  for (i = 0; i < secs.length; i++) {
+    secs[i].style.display = 'none';
+  }
   document.getElementById(tab+'-tab').style.display='block';
   document.getElementById(tab+'-btn').classList.add('active');
 }
