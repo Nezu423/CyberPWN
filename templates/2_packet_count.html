@@ -20,10 +20,18 @@ body{background:#2E3440;color:#D8DEE9;font-family:'Montserrat',sans-serif;paddin
 fetch('/api/sniffer/packet_count', {method:'POST'})
   .then(r=>r.json())
   .then(data=>{
-    document.getElementById('result').textContent = JSON.stringify(data, null, 2);
+    let html = '';
+    if(data.ok) {
+      html += `<b>Packets: ${data.count}</b><ul style='padding-left:16px;'>`;
+      data.packets.forEach(pkt => html += `<li>${pkt}</li>`);
+      html += '</ul>';
+    } else {
+      html = `<span style='color:#BF616A;'>Error: ${data.error}</span>`;
+    }
+    document.getElementById('result').innerHTML = html;
   })
   .catch(e=>{
-    document.getElementById('result').textContent = 'Error: '+e;
+    document.getElementById('result').innerHTML = '<span style="color:#BF616A;">Error: '+e+'</span>';
   });
 </script>
 </body>

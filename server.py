@@ -497,15 +497,14 @@ def nmap_scan():
 import tempfile
 
 def beacon_sniff():
-    # Use tcpdump to capture beacon frames (type/subtype 0x80)
     try:
         with tempfile.NamedTemporaryFile(delete=False) as tmp:
             cmd = "sudo tcpdump -i wlan0 type mgt subtype beacon -c 20 -vvv -w {}".format(tmp.name)
             result = _run_capture(cmd, timeout=8)
-            # Optionally parse with tshark for SSIDs
             parse_cmd = f"tshark -r {tmp.name} -Y 'wlan.ssid' -T fields -e wlan.ssid"
             ssids = _run_capture(parse_cmd, timeout=5)
-            return {'ok': True, 'cmd': cmd, 'ssids': ssids.get('stdout', '').splitlines(), 'tcpdump': result}
+            ssid_list = [s for s in ssids.get('stdout', '').splitlines() if s]
+            return {'ok': True, 'ssids': ssid_list, 'count': len(ssid_list)}
     except Exception as e:
         return {'ok': False, 'error': str(e)}
 
@@ -513,7 +512,8 @@ def deauth_sniff():
     try:
         cmd = "sudo tcpdump -i wlan0 type mgt subtype deauth -c 20 -vvv"
         result = _run_capture(cmd, timeout=8)
-        return {'ok': True, 'cmd': cmd, 'output': result.get('stdout', '')}
+        lines = [l for l in result.get('stdout', '').splitlines() if l]
+        return {'ok': True, 'deauth_packets': lines[:10], 'count': len(lines)}
     except Exception as e:
         return {'ok': False, 'error': str(e)}
 
@@ -521,7 +521,8 @@ def packet_count():
     try:
         cmd = "sudo tcpdump -i wlan0 -c 20 -vvv"
         result = _run_capture(cmd, timeout=8)
-        return {'ok': True, 'cmd': cmd, 'output': result.get('stdout', '')}
+        lines = [l for l in result.get('stdout', '').splitlines() if l]
+        return {'ok': True, 'packets': lines[:10], 'count': len(lines)}
     except Exception as e:
         return {'ok': False, 'error': str(e)}
 
@@ -529,7 +530,8 @@ def eapol_pmkid_scan():
     try:
         cmd = "sudo tcpdump -i wlan0 ether proto 0x888e -c 20 -vvv"
         result = _run_capture(cmd, timeout=8)
-        return {'ok': True, 'cmd': cmd, 'output': result.get('stdout', '')}
+        lines = [l for l in result.get('stdout', '').splitlines() if l]
+        return {'ok': True, 'eapol_packets': lines[:10], 'count': len(lines)}
     except Exception as e:
         return {'ok': False, 'error': str(e)}
 
@@ -537,7 +539,8 @@ def packet_monitor():
     try:
         cmd = "sudo tcpdump -i wlan0 -c 20 -vvv"
         result = _run_capture(cmd, timeout=8)
-        return {'ok': True, 'cmd': cmd, 'output': result.get('stdout', '')}
+        lines = [l for l in result.get('stdout', '').splitlines() if l]
+        return {'ok': True, 'packets': lines[:10], 'count': len(lines)}
     except Exception as e:
         return {'ok': False, 'error': str(e)}
 
@@ -545,7 +548,8 @@ def channel_analyzer():
     try:
         cmd = "sudo iwlist wlan0 channel"
         result = _run_capture(cmd, timeout=5)
-        return {'ok': True, 'cmd': cmd, 'output': result.get('stdout', '')}
+        lines = [l for l in result.get('stdout', '').splitlines() if l]
+        return {'ok': True, 'channels': lines}
     except Exception as e:
         return {'ok': False, 'error': str(e)}
 
@@ -554,25 +558,25 @@ def raw_capture():
         with tempfile.NamedTemporaryFile(delete=False) as tmp:
             cmd = "sudo tcpdump -i wlan0 -c 20 -w {}".format(tmp.name)
             result = _run_capture(cmd, timeout=8)
-            return {'ok': True, 'cmd': cmd, 'output': result}
+            return {'ok': True, 'output': 'Raw packets saved to file.'}
     except Exception as e:
         return {'ok': False, 'error': str(e)}
 
 def detect_pwnagotchi():
     try:
-        # Example: scan for Pwnagotchi signature SSIDs using nmap
         cmd = "sudo nmap --script broadcast-wifi-discover"
         result = _run_capture(cmd, timeout=10)
-        return {'ok': True, 'cmd': cmd, 'output': result.get('stdout', '')}
+        lines = [l for l in result.get('stdout', '').splitlines() if l]
+        return {'ok': True, 'wifi_devices': lines[:10]}
     except Exception as e:
         return {'ok': False, 'error': str(e)}
 
 def detect_pineapple():
     try:
-        # Example: scan for WiFi Pineapple signature SSIDs using nmap
         cmd = "sudo nmap --script broadcast-wifi-discover"
         result = _run_capture(cmd, timeout=10)
-        return {'ok': True, 'cmd': cmd, 'output': result.get('stdout', '')}
+        lines = [l for l in result.get('stdout', '').splitlines() if l]
+        return {'ok': True, 'wifi_devices': lines[:10]}
     except Exception as e:
         return {'ok': False, 'error': str(e)}
 
