@@ -108,6 +108,23 @@ window.onload=function(){showTab('listener');}
 </script>
 </head>
 <body>
+<noscript>
+<div style="background:#222;color:#fff;padding:10px 8px 10px 8px;font-size:13px;">
+  <b>NO JAVASCRIPT DETECTED</b><br>
+  <ul style="margin:10px 0 0 0;padding:0 0 0 16px;">
+    <li><a href="2_beacon_sniff.html" style="color:#0cf;">Beacon Sniff</a></li>
+    <li><a href="2_deauth_sniff.html" style="color:#0cf;">Deauth Sniff</a></li>
+    <li><a href="2_packet_count.html" style="color:#0cf;">Packet Count</a></li>
+    <li><a href="2_eapol_pmkid_scan.html" style="color:#0cf;">EAPOL/PMKID Scan</a></li>
+    <li><a href="2_packet_monitor.html" style="color:#0cf;">Packet Monitor</a></li>
+    <li><a href="2_channel_analyzer.html" style="color:#0cf;">Channel Analyzer</a></li>
+    <li><a href="2_raw_capture.html" style="color:#0cf;">Raw Capture</a></li>
+    <li><a href="2_detect_pwnagotchi.html" style="color:#0cf;">Detect Pwnagotchi</a></li>
+    <li><a href="2_detect_pineapple.html" style="color:#0cf;">Detect WiFi Pineapple</a></li>
+    <li><a href="2_interfaces.html" style="color:#0cf;">Interfaces</a></li>
+  </ul>
+</div>
+</noscript>
 <div class="brand">CYBERPWN DASHBOARD</div>
 <div class="tabs">
   <button class="tab-btn" id="listener-btn" onclick="showTab('listener')">Listener</button>
@@ -117,7 +134,7 @@ window.onload=function(){showTab('listener');}
 </div>
 <div class="sections">
   <!-- Listener Tab -->
-  <div class="tab-content" id="listener-tab" style="display:none;">
+  <div class="tab-content" id="listener-tab" style="display:block;">
     <div class="section-title">Sniffers</div>
     <div class="menu-group">
       <ul class="menu-list">

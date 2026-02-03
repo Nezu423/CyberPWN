@@ -77,6 +77,7 @@
                         html += `<div class='iface'><div><b>${name}</b></div>`;
                         html += `<div class='info'>Type: ${info.type || 'N/A'} | MAC: ${info.mac || 'N/A'}</div>`;
                         html += `<div>Status: <span class='${info.state}'>${info.state ? info.state.toUpperCase() : 'UNKNOWN'}</span></div>`;
+                        html += `<button style='margin-top:6px;padding:6px 12px;background:#222;color:#0cf;border:1px solid #0cf;border-radius:4px;cursor:pointer;' onclick='enableMonitor("${name}")'>Enable Monitor Mode</button>`;
                         html += `</div>`;
                     }
                 } else {
@@ -89,6 +90,20 @@
             });
     }
     setInterval(fetchStatus, 2000);
+        function enableMonitor(iface) {
+            if (!confirm('Enable monitor mode on ' + iface + '?')) return;
+            fetch('/api/interfaces/' + iface + '/monitor/start', {method:'POST'})
+                .then(r => r.json())
+                .then(data => {
+                    if (data.ok) {
+                        alert('Monitor mode enabled: ' + (data.monitor_interface || iface));
+                        fetchStatus();
+                    } else {
+                        alert('Error: ' + (data.error || 'Failed'));
+                    }
+                })
+                .catch(e => alert('Error: ' + e));
+        }
     fetchStatus();
     </script>
 </body>
