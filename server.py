@@ -227,12 +227,12 @@ def network_info():
     try:
         info = []
         try:
-            ip_raw = _run("hostname -I", 2)
+            ip_raw = subprocess.check_output("hostname -I", shell=True, timeout=2).decode('utf-8').strip()
             info.append(f"IP: {ip_raw.split()[0] if ip_raw else 'N/A'}")
         except Exception:
             info.append("IP: N/A")
         try:
-            gw = _run("ip route | grep default | head -1", 2)
+            gw = subprocess.check_output("ip route | grep default | head -1", shell=True, timeout=2).decode('utf-8').strip()
             if gw and "via " in gw:
                 info.append(f"GW: {gw.split()[2]}")
             else:
@@ -240,17 +240,18 @@ def network_info():
         except Exception:
             info.append("GW: N/A")
         try:
-            info.append(f"HOST: {_run('hostname', 2)}")
+            host = subprocess.check_output('hostname', shell=True, timeout=2).decode('utf-8').strip()
+            info.append(f"HOST: {host}")
         except Exception:
             info.append("HOST: N/A")
         try:
-            out = _run("nmcli -t -f active,ssid dev wifi 2>/dev/null | grep yes || true", 2)
+            out = subprocess.check_output("nmcli -t -f active,ssid dev wifi 2>/dev/null | grep yes || true", shell=True, timeout=2).decode('utf-8').strip()
             ssid = (out.split(":")[-1].strip() if out else "") or "N/A"
             info.append(f"WIFI: {ssid}")
         except Exception:
             info.append("WIFI: N/A")
         try:
-            uptime = _run("uptime -p 2>/dev/null || cat /proc/uptime", 2)
+            uptime = subprocess.check_output("uptime -p 2>/dev/null || cat /proc/uptime", shell=True, timeout=2).decode('utf-8').strip()
             if uptime.startswith("up "):
                 info.append(f"UP: {uptime[3:][:30]}")
             else:
@@ -268,7 +269,7 @@ def ping_host():
     if not re.match(r"^[a-zA-Z0-9.\-]+$", host) or len(host) > 64:
         return jsonify(["ERROR: Invalid host"])
     try:
-        out = _run(f"ping -c 3 -W 2 {host} 2>&1", timeout=15)
+        out = subprocess.check_output(f"ping -c 3 -W 2 {host} 2>&1", shell=True, timeout=15).decode('utf-8', errors='replace')
         return jsonify([line for line in out.split("\n") if line][:12])
     except subprocess.TimeoutExpired:
         return jsonify([f"TIMEOUT: {host}"])
@@ -278,13 +279,13 @@ def ping_host():
 @app.route('/api/ping_gateway')
 def ping_gateway():
     try:
-        gw = _run("ip route | grep default | head -1", 2)
+        gw = subprocess.check_output("ip route | grep default | head -1", shell=True, timeout=2).decode('utf-8').strip()
         if not gw or "via " not in gw:
             return jsonify(["ERROR: No default gateway"])
         host = gw.split()[2]
         if not re.match(r"^[a-zA-Z0-9.\-]+$", host):
             return jsonify(["ERROR: Invalid gateway"])
-        out = _run(f"ping -c 3 -W 2 {host} 2>&1", timeout=15)
+        out = subprocess.check_output(f"ping -c 3 -W 2 {host} 2>&1", shell=True, timeout=15).decode('utf-8', errors='replace')
         return jsonify([f"Gateway: {host}"] + [line for line in out.split("\n") if line][:12])
     except subprocess.TimeoutExpired:
         return jsonify(["TIMEOUT: gateway"])
@@ -371,7 +372,7 @@ def deauth():
             return jsonify({"error": "Invalid BSSID", "debug": debug, "hint": "Use format AA:BB:CC:DD:EE:FF"})
         for iface in ["wlan0mon", "wlan1mon", "wlan0", "wlan1"]:
             try:
-                out = _run(f"sudo aireplay-ng -0 5 -a {bssid} {iface} 2>&1", timeout=15)
+                out = subprocess.check_output(f"sudo aireplay-ng -0 5 -a {bssid} {iface} 2>&1", shell=True, timeout=15).decode('utf-8', errors='replace')
                 return jsonify({"ok": True, "msg": f"Deauth sent on {iface}", "log": out[:500], "debug": debug})
             except Exception as e:
                 debug["last_error"] = str(e)
@@ -412,12 +413,12 @@ hw_mode=g
 
         # Run hostapd in debug mode (-d) so you see full startup/output; timeout after 8s
         cmd = f"sudo hostapd -d {config_path} 2>&1"
-        run_result = _run_capture(cmd, timeout=8)
+        run_result = run_capture(cmd, timeout=8)
         debug["config_path"] = str(config_path)
         debug["config_preview"] = config_body.strip()[:500]
-        debug["hostapd"] = {k: _ensure_str(v) if k in ("cmd", "stdout", "stderr") else v for k, v in run_result.items()}
+        debug["hostapd"] = {k: str(v) if k in ("cmd", "stdout", "stderr") else v for k, v in run_result.items()}
 
-        stdout_str = _ensure_str(run_result.get("stdout", ""))
+        stdout_str = str(run_result.get("stdout", ""))
         hint = None
         if "unavailable" in stdout_str.lower() or "INTERFACE_UNAVAILABLE" in stdout_str or "STOP_AP" in stdout_str:
             hint = "wlan0 was taken by NetworkManager/wpa_supplicant. To run AP: release the interface first (e.g. nmcli dev set wlan0 managed no, or use a second WiFi interface for AP)."
@@ -425,9 +426,9 @@ hw_mode=g
         payload = {
             "ok": run_result.get("returncode", -1) == 0 or run_result.get("timeout"),
             "msg": f"Evil Twin target: {ssid}",
-            "cmd": _ensure_str(run_result.get("cmd", cmd)),
+            "cmd": str(run_result.get("cmd", cmd)),
             "stdout": stdout_str,
-            "stderr": _ensure_str(run_result.get("stderr", "")),
+            "stderr": str(run_result.get("stderr", "")),
             "returncode": int(run_result.get("returncode", -1)),
             "timeout": bool(run_result.get("timeout", False)),
             "debug": debug,
@@ -455,14 +456,14 @@ def evil_twin_start():
         if not os.path.isfile(script):
             return jsonify({"error": f"Script not found: {script}"})
         cmd = f"sudo bash '{script}' '{ssid}' 2>&1"
-        run_result = _run_capture(cmd, timeout=25)
+        run_result = run_capture(cmd, timeout=25)
         return jsonify({
             "ok": run_result.get("returncode") == 0,
             "msg": f"AP start: {ssid}",
             "url": f"http://{AP_IP}:5000",
-            "cmd": _ensure_str(run_result.get("cmd", cmd)),
-            "stdout": _ensure_str(run_result.get("stdout", "")),
-            "stderr": _ensure_str(run_result.get("stderr", "")),
+            "cmd": str(run_result.get("cmd", cmd)),
+            "stdout": str(run_result.get("stdout", "")),
+            "stderr": str(run_result.get("stderr", "")),
             "returncode": int(run_result.get("returncode", -1)),
         })
     except Exception as e:
@@ -476,13 +477,13 @@ def evil_twin_stop():
         if not os.path.isfile(script):
             return jsonify({"error": f"Script not found: {script}"})
         cmd = f"sudo bash '{script}' 2>&1"
-        run_result = _run_capture(cmd, timeout=15)
+        run_result = run_capture(cmd, timeout=15)
         return jsonify({
             "ok": run_result.get("returncode") == 0,
             "msg": "AP stopped",
-            "cmd": _ensure_str(run_result.get("cmd", cmd)),
-            "stdout": _ensure_str(run_result.get("stdout", "")),
-            "stderr": _ensure_str(run_result.get("stderr", "")),
+            "cmd": str(run_result.get("cmd", cmd)),
+            "stdout": str(run_result.get("stdout", "")),
+            "stderr": str(run_result.get("stderr", "")),
             "returncode": int(run_result.get("returncode", -1)),
         })
     except Exception as e:
@@ -532,7 +533,7 @@ def cisco_vlans():
         target = request.args.get("target", "").strip() or None
         if not target:
             try:
-                ip_raw = _run("hostname -I", 2)
+                ip_raw = subprocess.check_output("hostname -I", shell=True, timeout=2).decode('utf-8').strip()
                 target = ip_raw.split()[0] if ip_raw else None
                 if target:
                     target = ".".join(target.split(".")[:3] + ["1"])
@@ -541,7 +542,7 @@ def cisco_vlans():
         if not target or not re.match(r"^[0-9.]+$", target):
             return jsonify(["ERROR: No target. Use ?target=192.168.1.1 or ensure network."])
         cmd = f"snmpwalk -v2c -c public {target} 1.3.6.1.4.1.9.9.46.1.3.1.1.2 2>/dev/null || echo 'snmpwalk not found or no VLAN OID'"
-        out = _run_capture(cmd, timeout=10)
+        out = run_capture(cmd, timeout=10)
         lines = (out.get("stdout") or "").split("\n")[:30]
         if not any("1.3.6" in l for l in lines):
             lines = ["SNMP VLAN OID not available.", "Install: apt install snmp", "Or use target= switch IP with SNMP enabled."] + lines
@@ -559,13 +560,13 @@ Use only on authorized networks.
 @app.route('/api/cisco_audit')
 def cisco_audit():
     try:
-        my_ip_raw = _run("hostname -I", 2)
+        my_ip_raw = subprocess.check_output("hostname -I", shell=True, timeout=2).decode('utf-8').strip()
         if not my_ip_raw:
             return jsonify(["ERROR: No network."])
         my_ip = my_ip_raw.split()[0]
         subnet = f"{'.'.join(my_ip.split('.')[:3])}.0/24"
         cmd = f"nmap -sT -p 23,22,161,443,80 --open -n {subnet} --exclude {my_ip} 2>&1 | head -80"
-        out = _run_capture(cmd, timeout=60)
+        out = run_capture(cmd, timeout=60)
         lines = (out.get("stdout") or "").split("\n")
         result = [f"TARGET: {subnet}", CISCO_HINTS, ""] + [l for l in lines if l.strip()]
         return jsonify(result[:50])
@@ -631,9 +632,9 @@ def beacon_sniff():
     try:
         with tempfile.NamedTemporaryFile(delete=False) as tmp:
             cmd = "sudo tcpdump -i wlan0 type mgt subtype beacon -c 20 -vvv -w {}".format(tmp.name)
-            result = _run_capture(cmd, timeout=8)
+            result = run_capture(cmd, timeout=8)
             parse_cmd = f"tshark -r {tmp.name} -Y 'wlan.ssid' -T fields -e wlan.ssid"
-            ssids = _run_capture(parse_cmd, timeout=5)
+            ssids = run_capture(parse_cmd, timeout=5)
             ssid_list = [s for s in ssids.get('stdout', '').splitlines() if s]
             return {'ok': True, 'ssids': ssid_list, 'count': len(ssid_list)}
     except Exception as e:
@@ -642,7 +643,7 @@ def beacon_sniff():
 def deauth_sniff():
     try:
         cmd = "sudo tcpdump -i wlan0 type mgt subtype deauth -c 20 -vvv"
-        result = _run_capture(cmd, timeout=8)
+        result = run_capture(cmd, timeout=8)
         lines = [l for l in result.get('stdout', '').splitlines() if l]
         return {'ok': True, 'deauth_packets': lines[:10], 'count': len(lines)}
     except Exception as e:
@@ -651,7 +652,7 @@ def deauth_sniff():
 def packet_count():
     try:
         cmd = "sudo tcpdump -i wlan0 -c 20 -vvv"
-        result = _run_capture(cmd, timeout=8)
+        result = run_capture(cmd, timeout=8)
         lines = [l for l in result.get('stdout', '').splitlines() if l]
         return {'ok': True, 'packets': lines[:10], 'count': len(lines)}
     except Exception as e:
@@ -660,7 +661,7 @@ def packet_count():
 def eapol_pmkid_scan():
     try:
         cmd = "sudo tcpdump -i wlan0 ether proto 0x888e -c 20 -vvv"
-        result = _run_capture(cmd, timeout=8)
+        result = run_capture(cmd, timeout=8)
         lines = [l for l in result.get('stdout', '').splitlines() if l]
         return {'ok': True, 'eapol_packets': lines[:10], 'count': len(lines)}
     except Exception as e:
@@ -669,7 +670,7 @@ def eapol_pmkid_scan():
 def packet_monitor():
     try:
         cmd = "sudo tcpdump -i wlan0 -c 20 -vvv"
-        result = _run_capture(cmd, timeout=8)
+        result = run_capture(cmd, timeout=8)
         lines = [l for l in result.get('stdout', '').splitlines() if l]
         return {'ok': True, 'packets': lines[:10], 'count': len(lines)}
     except Exception as e:
@@ -678,7 +679,7 @@ def packet_monitor():
 def channel_analyzer():
     try:
         cmd = "sudo iwlist wlan0 channel"
-        result = _run_capture(cmd, timeout=5)
+        result = run_capture(cmd, timeout=5)
         lines = [l for l in result.get('stdout', '').splitlines() if l]
         return {'ok': True, 'channels': lines}
     except Exception as e:
@@ -688,7 +689,7 @@ def raw_capture():
     try:
         with tempfile.NamedTemporaryFile(delete=False) as tmp:
             cmd = "sudo tcpdump -i wlan0 -c 20 -w {}".format(tmp.name)
-            result = _run_capture(cmd, timeout=8)
+            result = run_capture(cmd, timeout=8)
             return {'ok': True, 'output': 'Raw packets saved to file.'}
     except Exception as e:
         return {'ok': False, 'error': str(e)}
@@ -696,7 +697,7 @@ def raw_capture():
 def detect_pwnagotchi():
     try:
         cmd = "sudo nmap --script broadcast-wifi-discover"
-        result = _run_capture(cmd, timeout=10)
+        result = run_capture(cmd, timeout=10)
         lines = [l for l in result.get('stdout', '').splitlines() if l]
         return {'ok': True, 'wifi_devices': lines[:10]}
     except Exception as e:
@@ -705,11 +706,31 @@ def detect_pwnagotchi():
 def detect_pineapple():
     try:
         cmd = "sudo nmap --script broadcast-wifi-discover"
-        result = _run_capture(cmd, timeout=10)
+        result = run_capture(cmd, timeout=10)
         lines = [l for l in result.get('stdout', '').splitlines() if l]
         return {'ok': True, 'wifi_devices': lines[:10]}
     except Exception as e:
         return {'ok': False, 'error': str(e)}
+# --- Helper: run_capture (replaces _run_capture) ---
+import subprocess
+def run_capture(cmd, timeout=10):
+    try:
+        result = subprocess.run(cmd, shell=True, capture_output=True, timeout=timeout)
+        return {
+            'cmd': cmd,
+            'stdout': result.stdout.decode('utf-8', errors='replace'),
+            'stderr': result.stderr.decode('utf-8', errors='replace'),
+            'returncode': result.returncode,
+            'timeout': False
+        }
+    except subprocess.TimeoutExpired as e:
+        return {
+            'cmd': cmd,
+            'stdout': '',
+            'stderr': f'Timeout: {str(e)}',
+            'returncode': -1,
+            'timeout': True
+        }
 
 
 # --- SNIFFER ROUTES (run command, return output) --- #
