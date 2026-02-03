@@ -776,54 +776,53 @@ def beacon_sniff():
                 pass
         
         # Fallback to tcpdump if airodump failed
-        if not ssids:
-            cmd: str = f"sudo tcpdump -i {mon_iface} -n -c 20 type mgt subtype beacon 2>/dev/null | grep -o 'SSID: [^,]*' | cut -d' ' -f2"
+        try:
+            # Use airodump-ng for better beacon capture
+            mon_iface = get_monitor_interface()
+            if not mon_iface:
+                return {'ok': False, 'error': 'No monitor interface available', 'cmd': None, 'stdout': '', 'stderr': ''}
+            # Capture beacons using airodump-ng (more reliable than tcpdump)
+            with tempfile.NamedTemporaryFile(mode='w', suffix='.csv', delete=False) as tmp:
+                csv_file = tmp.name
+            cmd: str = f"sudo timeout 5 airodump-ng --write /tmp/beacon_cap --output-format csv {mon_iface} 2>&1 | head -20"
             result = run_capture(cmd, timeout=8)
-            ssids = [s.strip() for s in result.get('stdout', '').split('\n') if s.strip() and s.strip() != 'SSID:']
-        
-        return {'ok': True, 'ssids': list(set(ssids))[:20], 'count': len(ssids)}
-    except Exception as e:
-        return {'ok': False, 'error': str(e)}
-
-def deauth_sniff():
-    """Capture deauthentication frames."""
-    try:
-        mon_iface = get_monitor_interface()
-        if not mon_iface:
-            return {'ok': False, 'error': 'No monitor interface available'}
-        
-        cmd: str = f"sudo tcpdump -i {mon_iface} -n -c 20 type mgt subtype deauth 2>/dev/null"
-        result = run_capture(cmd, timeout=8)
-        lines = [l.strip() for l in result.get('stdout', '').splitlines() if l.strip()]
-        return {'ok': True, 'deauth_packets': lines[:10], 'count': len(lines)}
-    except Exception as e:
-        return {'ok': False, 'error': str(e)}
-
-def packet_count():
-    """Count packets on wireless interface."""
-    try:
-        mon_iface = get_monitor_interface() or 'wlan0'
-        cmd: str = f"sudo tcpdump -i {mon_iface} -n -c 20 2>/dev/null"
-        result = run_capture(cmd, timeout=8)
-        lines = [l.strip() for l in result.get('stdout', '').splitlines() if l.strip()]
-        return {'ok': True, 'packets': lines[:10], 'count': len(lines)}
-    except Exception as e:
-        return {'ok': False, 'error': str(e)}
+            # Try to parse CSV output
+            ssids = []
+            if os.path.exists('/tmp/beacon_cap-01.csv'):
+                try:
+                    with open('/tmp/beacon_cap-01.csv', 'r') as f:
+                        for line in f:
+                            if 'Station MAC' in line:
+                                break
+                            parts = line.split(',')
+                            if len(parts) > 13 and parts[13].strip():
+                                ssid = parts[13].strip()
+                                if ssid and ssid not in ssids:
+                                    ssids.append(ssid)
+                except Exception:
+                    pass
+            # Fallback to tcpdump if airodump failed
+            if not ssids:
+                cmd: str = f"sudo tcpdump -i {mon_iface} -n -c 20 type mgt subtype beacon 2>/dev/null | grep -o 'SSID: [^,]*' | cut -d' ' -f2"
+                result = run_capture(cmd, timeout=8)
+                ssids = [s.strip() for s in result.get('stdout', '').split('\n') if s.strip() and s.strip() != 'SSID:']
+            return {'ok': True, 'ssids': list(set(ssids))[:20], 'count': len(ssids)}
+        except Exception as e:
+            return {'ok': False, 'error': str(e), 'cmd': cmd if 'cmd' in locals() else None, 'stdout': result.get('stdout', '') if 'result' in locals() else '', 'stderr': result.get('stderr', '') if 'result' in locals() else ''}
 
 def eapol_pmkid_scan():
     """Capture EAPOL/PMKID handshakes for WPA cracking."""
     try:
         mon_iface = get_monitor_interface()
         if not mon_iface:
-            return {'ok': False, 'error': 'No monitor interface available'}
-        
+            return {'ok': False, 'error': 'No monitor interface available', 'cmd': None, 'stdout': '', 'stderr': ''}
         # Capture EAPOL frames (WPA handshake)
         cmd: str = f"sudo tcpdump -i {mon_iface} -n -c 20 ether proto 0x888e 2>/dev/null"
         result = run_capture(cmd, timeout=8)
         lines = [l.strip() for l in result.get('stdout', '').splitlines() if l.strip()]
         return {'ok': True, 'eapol_packets': lines[:10], 'count': len(lines)}
     except Exception as e:
-        return {'ok': False, 'error': str(e)}
+        return {'ok': False, 'error': str(e), 'cmd': cmd if 'cmd' in locals() else None, 'stdout': result.get('stdout', '') if 'result' in locals() else '', 'stderr': result.get('stderr', '') if 'result' in locals() else ''}
 
 def packet_monitor():
     """Monitor all packets on wireless interface."""
@@ -834,18 +833,19 @@ def packet_monitor():
         lines = [l.strip() for l in result.get('stdout', '').splitlines() if l.strip()]
         return {'ok': True, 'packets': lines[:10], 'count': len(lines)}
     except Exception as e:
-        return {'ok': False, 'error': str(e)}
+        return {'ok': False, 'error': str(e), 'cmd': cmd if 'cmd' in locals() else None, 'stdout': result.get('stdout', '') if 'result' in locals() else '', 'stderr': result.get('stderr', '') if 'result' in locals() else ''}
 
 def channel_analyzer():
     """Analyze WiFi channels using iwlist."""
     try:
-        result = run_capture("sudo iwlist wlan0 channel 2>/dev/null", timeout=5)
+        cmd = "sudo iwlist wlan0 channel 2>/dev/null"
+        result = run_capture(cmd, timeout=5)
         if result.get('returncode') != 0:
-            return {'ok': False, 'error': 'iwlist failed - interface may not support channel scanning'}
+            return {'ok': False, 'error': 'iwlist failed - interface may not support channel scanning', 'cmd': cmd, 'stdout': result.get('stdout', ''), 'stderr': result.get('stderr', '')}
         lines = [l.strip() for l in result.get('stdout', '').splitlines() if l.strip()]
         return {'ok': True, 'channels': lines}
     except Exception as e:
-        return {'ok': False, 'error': str(e)}
+        return {'ok': False, 'error': str(e), 'cmd': cmd if 'cmd' in locals() else None, 'stdout': result.get('stdout', '') if 'result' in locals() else '', 'stderr': result.get('stderr', '') if 'result' in locals() else ''}
 
 def raw_capture():
     """Capture raw packets to file."""
@@ -857,27 +857,29 @@ def raw_capture():
         if result.get('returncode') == 0 and os.path.exists(capture_file):
             return {'ok': True, 'output': f'Raw packets saved to {capture_file}', 'file': capture_file}
         else:
-            return {'ok': False, 'error': 'Capture failed or file not created'}
+            return {'ok': False, 'error': 'Capture failed or file not created', 'cmd': cmd, 'stdout': result.get('stdout', ''), 'stderr': result.get('stderr', '')}
     except Exception as e:
-        return {'ok': False, 'error': str(e)}
+        return {'ok': False, 'error': str(e), 'cmd': cmd if 'cmd' in locals() else None, 'stdout': result.get('stdout', '') if 'result' in locals() else '', 'stderr': result.get('stderr', '') if 'result' in locals() else ''}
 
 def detect_pwnagotchi():
     """Detect Pwnagotchi devices using nmap."""
     try:
-        result = run_capture("sudo nmap --script broadcast-wifi-discover 2>/dev/null", timeout=10)
+        cmd = "sudo nmap --script broadcast-wifi-discover 2>/dev/null"
+        result = run_capture(cmd, timeout=10)
         lines = [l.strip() for l in result.get('stdout', '').splitlines() if l.strip() and 'pwnagotchi' in l.lower()]
         return {'ok': True, 'wifi_devices': lines[:10], 'count': len(lines)}
     except Exception as e:
-        return {'ok': False, 'error': str(e)}
+        return {'ok': False, 'error': str(e), 'cmd': cmd if 'cmd' in locals() else None, 'stdout': result.get('stdout', '') if 'result' in locals() else '', 'stderr': result.get('stderr', '') if 'result' in locals() else ''}
 
 def detect_pineapple():
     """Detect WiFi Pineapple devices using nmap."""
     try:
-        result = run_capture("sudo nmap --script broadcast-wifi-discover 2>/dev/null", timeout=10)
+        cmd = "sudo nmap --script broadcast-wifi-discover 2>/dev/null"
+        result = run_capture(cmd, timeout=10)
         lines = [l.strip() for l in result.get('stdout', '').splitlines() if l.strip() and ('pineapple' in l.lower() or 'wifipineapple' in l.lower())]
         return {'ok': True, 'wifi_devices': lines[:10], 'count': len(lines)}
     except Exception as e:
-        return {'ok': False, 'error': str(e)}
+        return {'ok': False, 'error': str(e), 'cmd': cmd if 'cmd' in locals() else None, 'stdout': result.get('stdout', '') if 'result' in locals() else '', 'stderr': result.get('stderr', '') if 'result' in locals() else ''}
 
 # --- Sniffer API Routes ---
 @app.route('/api/sniffer/beacon', methods=['POST'])
