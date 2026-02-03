@@ -1,50 +1,17 @@
-import subprocess
-import os
-import re
+
+import subprocess, os, re
 from flask import Flask, jsonify, request, render_template, send_from_directory, abort
 import hashlib
 
-# --- SETUP ---
+import os
+import re
+import hashlib
+import subprocess
+
 base_dir = os.path.abspath(os.path.dirname(__file__))
 template_dir = os.path.join(base_dir, 'templates')
 app = Flask(__name__, template_folder=template_dir)
 
-def _run(cmd, timeout=10):
-    return subprocess.check_output(cmd, shell=True, timeout=timeout).decode('utf-8').strip()
-
-def _ensure_str(v):
-    """Ensure value is str for JSON (bytes -> decode)."""
-    if v is None:
-        return ""
-    if isinstance(v, bytes):
-        return v.decode("utf-8", errors="replace")
-    return str(v)
-
-def _run_capture(cmd, timeout=10):
-    """Run command and return dict: cmd, stdout, stderr, returncode (for debug). All values JSON-serializable."""
-    try:
-        r = subprocess.run(
-            cmd, shell=True, timeout=timeout,
-            capture_output=True, text=True
-        )
-        return {
-            "cmd": _ensure_str(cmd),
-            "stdout": _ensure_str(r.stdout or "")[-4000:],
-            "stderr": _ensure_str(r.stderr or "")[-4000:],
-            "returncode": int(r.returncode),
-        }
-    except subprocess.TimeoutExpired as e:
-        out = _ensure_str(getattr(e, "stdout", None) or "")[-4000:]
-        err = _ensure_str(getattr(e, "stderr", None) or "")[-4000:]
-        return {"cmd": _ensure_str(cmd), "stdout": out, "stderr": err, "returncode": -1, "timeout": True}
-    except Exception as e:
-        return {"cmd": _ensure_str(cmd), "stdout": "", "stderr": _ensure_str(str(e)), "returncode": -1, "error": _ensure_str(str(e))}
-
-###########################
-# --- ROUTES ---
-###########################
-
-# --- API: Verify PIN () ---
 PIN_SHA256 = hashlib.sha256("062823".encode()).hexdigest()
 
 @app.route('/api/verify_pin', methods=['POST'])
@@ -54,7 +21,6 @@ def api_verify_pin():
         pin = (data.get("pin") or "").strip()
         if not pin:
             return jsonify({"ok": False, "error": "PIN required"})
-        # Use SHA256 for PIN verification
         pin_hash = hashlib.sha256(pin.encode()).hexdigest()
         if pin_hash == PIN_SHA256:
             return jsonify({"ok": True})
@@ -62,12 +28,11 @@ def api_verify_pin():
             return jsonify({"ok": False, "error": "SHA256 PIN denied"})
     except Exception as e:
         return jsonify({"ok": False, "error": str(e)})
+
 @app.route('/')
 def home():
-    return render_template('index.html')  # Pin / main gatekeeper page
+    return render_template('index.html')
 
-
-# Handle favicon.ico requests gracefully
 @app.route('/favicon.ico')
 def favicon():
     static_favicon = os.path.join(app.root_path, 'static', 'favicon.ico')
@@ -79,7 +44,6 @@ def favicon():
     else:
         abort(404)
 
-# Serve only .html templates and handle missing templates with 404
 @app.route('/<path:filename>')
 def serve_page(filename):
     if not filename.endswith('.html'):
@@ -88,6 +52,174 @@ def serve_page(filename):
     if not os.path.exists(template_path):
         abort(404)
     return render_template(filename)
+
+# --- API: Run any shell command and return output ---
+@app.route('/api/run_command', methods=['POST'])
+def run_command():
+    data = request.get_json(force=True, silent=True) or {}
+    cmd = (data.get('cmd') or '').strip()
+    if not cmd:
+        return jsonify({'error': 'No command provided'}), 400
+    try:
+        output = subprocess.check_output(cmd, shell=True, timeout=15).decode('utf-8', errors='replace')
+        return jsonify({'output': output})
+    except Exception as e:
+        return jsonify({'error': str(e)})
+
+# --- Example API routes for common commands ---
+@app.route('/api/network_info')
+def network_info():
+    try:
+        output = subprocess.check_output("hostname -I; ip route; hostname; nmcli -t -f active,ssid dev wifi; uptime", shell=True, timeout=10).decode('utf-8', errors='replace')
+        return jsonify({'output': output})
+    except Exception as e:
+        return jsonify({'error': str(e)})
+
+@app.route('/api/ping')
+def ping_host():
+    host = request.args.get("host", "8.8.8.8").strip()
+    if not re.match(r"^[a-zA-Z0-9.\-]+$", host) or len(host) > 64:
+        return jsonify({'error': 'Invalid host'})
+    try:
+        output = subprocess.check_output(f"ping -c 3 -W 2 {host}", shell=True, timeout=10).decode('utf-8', errors='replace')
+        return jsonify({'output': output})
+    except Exception as e:
+        return jsonify({'error': str(e)})
+
+@app.route('/api/ping_gateway')
+def ping_gateway():
+    try:
+        gw = subprocess.check_output("ip route | grep default | head -1", shell=True, timeout=5).decode('utf-8').strip()
+        if not gw or "via " not in gw:
+            return jsonify({'error': 'No default gateway'})
+        host = gw.split()[2]
+        if not re.match(r"^[a-zA-Z0-9.\-]+$", host):
+            return jsonify({'error': 'Invalid gateway'})
+        output = subprocess.check_output(f"ping -c 3 -W 2 {host}", shell=True, timeout=10).decode('utf-8', errors='replace')
+        return jsonify({'output': output})
+    except Exception as e:
+        return jsonify({'error': str(e)})
+
+@app.route('/api/scan_wifi')
+def scan_wifi():
+    try:
+        output = subprocess.check_output("sudo nmcli -t -f SSID,SIGNAL,SECURITY dev wifi list", shell=True, timeout=10).decode('utf-8', errors='replace')
+        return jsonify({'output': output})
+    except Exception as e:
+        return jsonify({'error': str(e)})
+
+@app.route('/api/scan_wifi_list')
+def scan_wifi_list():
+    try:
+        output = subprocess.check_output("sudo nmcli -t -f SSID,BSSID,SIGNAL,CHAN dev wifi list", shell=True, timeout=10).decode('utf-8', errors='replace')
+        return jsonify({'output': output})
+    except Exception as e:
+        return jsonify({'error': str(e)})
+
+@app.route('/api/deauth', methods=['POST'])
+def deauth():
+    try:
+        data = request.get_json(force=True, silent=True) or {}
+        bssid = (data.get("bssid") or "").strip().upper()
+        if not re.match(r"^([0-9A-Fa-f]{2}:){5}[0-9A-Fa-f]{2}$", bssid):
+            return jsonify({'error': 'Invalid BSSID'})
+        output = subprocess.check_output(f"sudo aireplay-ng -0 5 -a {bssid} wlan0mon", shell=True, timeout=15).decode('utf-8', errors='replace')
+        return jsonify({'output': output})
+    except Exception as e:
+        return jsonify({'error': str(e)})
+
+@app.route('/api/evil_twin', methods=['POST'])
+def evil_twin():
+    try:
+        data = request.get_json(force=True, silent=True) or {}
+        ssid = (data.get("ssid") or "").strip()[:32]
+        if not ssid:
+            return jsonify({'error': 'SSID required'})
+        config_path = os.path.join(base_dir, "evil_twin.conf")
+        config_body = f"""interface=wlan0\ndriver=nl80211\nssid={ssid}\nchannel=6\nhw_mode=g\n"""
+        with open(config_path, "w") as f:
+            f.write(config_body)
+        output = subprocess.check_output(f"sudo hostapd -d {config_path}", shell=True, timeout=10).decode('utf-8', errors='replace')
+        return jsonify({'output': output})
+    except Exception as e:
+        return jsonify({'error': str(e)})
+
+# --- SNIFFER ROUTES (run command, return output) --- #
+@app.route('/api/sniffer/beacon', methods=['POST'])
+def sniffer_beacon():
+    cmd = "sudo tcpdump -i wlan0 type mgt subtype beacon -c 20 -vvv"
+    try:
+        output = subprocess.check_output(cmd, shell=True, timeout=10).decode('utf-8', errors='replace')
+        return jsonify({'output': output})
+    except Exception as e:
+        return jsonify({'error': str(e)})
+
+@app.route('/api/sniffer/deauth', methods=['POST'])
+def sniffer_deauth():
+    cmd = "sudo tcpdump -i wlan0 type mgt subtype deauth -c 20 -vvv"
+    try:
+        output = subprocess.check_output(cmd, shell=True, timeout=10).decode('utf-8', errors='replace')
+        return jsonify({'output': output})
+    except Exception as e:
+        return jsonify({'error': str(e)})
+
+@app.route('/api/sniffer/packet_count', methods=['POST'])
+def sniffer_packet_count():
+    cmd = "sudo tcpdump -i wlan0 -c 20 -vvv"
+    try:
+        output = subprocess.check_output(cmd, shell=True, timeout=10).decode('utf-8', errors='replace')
+        return jsonify({'output': output})
+    except Exception as e:
+        return jsonify({'error': str(e)})
+
+@app.route('/api/sniffer/eapol_pmkid', methods=['POST'])
+def sniffer_eapol_pmkid():
+    cmd = "sudo tcpdump -i wlan0 ether proto 0x888e -c 20 -vvv"
+    try:
+        output = subprocess.check_output(cmd, shell=True, timeout=10).decode('utf-8', errors='replace')
+        return jsonify({'output': output})
+    except Exception as e:
+        return jsonify({'error': str(e)})
+
+@app.route('/api/sniffer/packet_monitor', methods=['POST'])
+def sniffer_packet_monitor():
+    cmd = "sudo tcpdump -i wlan0 -c 20 -vvv"
+    try:
+        output = subprocess.check_output(cmd, shell=True, timeout=10).decode('utf-8', errors='replace')
+        return jsonify({'output': output})
+    except Exception as e:
+        return jsonify({'error': str(e)})
+
+@app.route('/api/sniffer/channel_analyzer', methods=['POST'])
+def sniffer_channel_analyzer():
+    cmd = "sudo iwlist wlan0 channel"
+    try:
+        output = subprocess.check_output(cmd, shell=True, timeout=10).decode('utf-8', errors='replace')
+        return jsonify({'output': output})
+    except Exception as e:
+        return jsonify({'error': str(e)})
+
+@app.route('/api/sniffer/raw_capture', methods=['POST'])
+def sniffer_raw_capture():
+    cmd = "sudo tcpdump -i wlan0 -c 20"
+    try:
+        output = subprocess.check_output(cmd, shell=True, timeout=10).decode('utf-8', errors='replace')
+        return jsonify({'output': output})
+    except Exception as e:
+        return jsonify({'error': str(e)})
+
+# --- API: Run any shell command and return output ---
+@app.route('/api/run_command', methods=['POST'])
+def run_command():
+    data = request.get_json(force=True, silent=True) or {}
+    cmd = (data.get('cmd') or '').strip()
+    if not cmd:
+        return jsonify({'error': 'No command provided'}), 400
+    try:
+        output = subprocess.check_output(cmd, shell=True, timeout=10).decode('utf-8', errors='replace')
+        return jsonify({'output': output})
+    except Exception as e:
+        return jsonify({'error': str(e)})
 
 # --- API: Network Info (IP, gateway, hostname, WiFi SSID) ---
 @app.route('/api/network_info')
@@ -579,34 +711,70 @@ def detect_pineapple():
     except Exception as e:
         return {'ok': False, 'error': str(e)}
 
-# --- SNIFFER ROUTES --- #
+
+# --- SNIFFER ROUTES (run command, return output) --- #
 @app.route('/api/sniffer/beacon', methods=['POST'])
 def sniffer_beacon():
-    return jsonify(beacon_sniff())
+    cmd = "sudo tcpdump -i wlan0 type mgt subtype beacon -c 20 -vvv"
+    try:
+        output = subprocess.check_output(cmd, shell=True, timeout=10).decode('utf-8', errors='replace')
+        return jsonify({'output': output})
+    except Exception as e:
+        return jsonify({'error': str(e)})
 
 @app.route('/api/sniffer/deauth', methods=['POST'])
 def sniffer_deauth():
-    return jsonify(deauth_sniff())
+    cmd = "sudo tcpdump -i wlan0 type mgt subtype deauth -c 20 -vvv"
+    try:
+        output = subprocess.check_output(cmd, shell=True, timeout=10).decode('utf-8', errors='replace')
+        return jsonify({'output': output})
+    except Exception as e:
+        return jsonify({'error': str(e)})
 
 @app.route('/api/sniffer/packet_count', methods=['POST'])
 def sniffer_packet_count():
-    return jsonify(packet_count())
+    cmd = "sudo tcpdump -i wlan0 -c 20 -vvv"
+    try:
+        output = subprocess.check_output(cmd, shell=True, timeout=10).decode('utf-8', errors='replace')
+        return jsonify({'output': output})
+    except Exception as e:
+        return jsonify({'error': str(e)})
 
 @app.route('/api/sniffer/eapol_pmkid', methods=['POST'])
 def sniffer_eapol_pmkid():
-    return jsonify(eapol_pmkid_scan())
+    cmd = "sudo tcpdump -i wlan0 ether proto 0x888e -c 20 -vvv"
+    try:
+        output = subprocess.check_output(cmd, shell=True, timeout=10).decode('utf-8', errors='replace')
+        return jsonify({'output': output})
+    except Exception as e:
+        return jsonify({'error': str(e)})
 
 @app.route('/api/sniffer/packet_monitor', methods=['POST'])
 def sniffer_packet_monitor():
-    return jsonify(packet_monitor())
+    cmd = "sudo tcpdump -i wlan0 -c 20 -vvv"
+    try:
+        output = subprocess.check_output(cmd, shell=True, timeout=10).decode('utf-8', errors='replace')
+        return jsonify({'output': output})
+    except Exception as e:
+        return jsonify({'error': str(e)})
 
 @app.route('/api/sniffer/channel_analyzer', methods=['POST'])
 def sniffer_channel_analyzer():
-    return jsonify(channel_analyzer())
+    cmd = "sudo iwlist wlan0 channel"
+    try:
+        output = subprocess.check_output(cmd, shell=True, timeout=10).decode('utf-8', errors='replace')
+        return jsonify({'output': output})
+    except Exception as e:
+        return jsonify({'error': str(e)})
 
 @app.route('/api/sniffer/raw_capture', methods=['POST'])
 def sniffer_raw_capture():
-    return jsonify(raw_capture())
+    cmd = "sudo tcpdump -i wlan0 -c 20"
+    try:
+        output = subprocess.check_output(cmd, shell=True, timeout=10).decode('utf-8', errors='replace')
+        return jsonify({'output': output})
+    except Exception as e:
+        return jsonify({'error': str(e)})
 
 @app.route('/api/sniffer/detect_pwnagotchi', methods=['POST'])
 def sniffer_detect_pwnagotchi():
