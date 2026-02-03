@@ -774,41 +774,22 @@ def beacon_sniff():
                                 ssids.append(ssid)
             except Exception:
                 pass
-        
+
         # Fallback to tcpdump if airodump failed
-        try:
-            # Use airodump-ng for better beacon capture
-            mon_iface = get_monitor_interface()
-            if not mon_iface:
-                return {'ok': False, 'error': 'No monitor interface available', 'cmd': None, 'stdout': '', 'stderr': ''}
-            # Capture beacons using airodump-ng (more reliable than tcpdump)
-            with tempfile.NamedTemporaryFile(mode='w', suffix='.csv', delete=False) as tmp:
-                csv_file = tmp.name
-            cmd: str = f"sudo timeout 5 airodump-ng --write /tmp/beacon_cap --output-format csv {mon_iface} 2>&1 | head -20"
+        if not ssids:
+            cmd = f"sudo tcpdump -i {mon_iface} -n -c 20 type mgt subtype beacon 2>/dev/null | grep -o 'SSID: [^,]*' | cut -d' ' -f2"
             result = run_capture(cmd, timeout=8)
-            # Try to parse CSV output
-            ssids = []
-            if os.path.exists('/tmp/beacon_cap-01.csv'):
-                try:
-                    with open('/tmp/beacon_cap-01.csv', 'r') as f:
-                        for line in f:
-                            if 'Station MAC' in line:
-                                break
-                            parts = line.split(',')
-                            if len(parts) > 13 and parts[13].strip():
-                                ssid = parts[13].strip()
-                                if ssid and ssid not in ssids:
-                                    ssids.append(ssid)
-                except Exception:
-                    pass
-            # Fallback to tcpdump if airodump failed
-            if not ssids:
-                cmd: str = f"sudo tcpdump -i {mon_iface} -n -c 20 type mgt subtype beacon 2>/dev/null | grep -o 'SSID: [^,]*' | cut -d' ' -f2"
-                result = run_capture(cmd, timeout=8)
-                ssids = [s.strip() for s in result.get('stdout', '').split('\n') if s.strip() and s.strip() != 'SSID:']
-            return {'ok': True, 'ssids': list(set(ssids))[:20], 'count': len(ssids)}
-        except Exception as e:
-            return {'ok': False, 'error': str(e), 'cmd': cmd if 'cmd' in locals() else None, 'stdout': result.get('stdout', '') if 'result' in locals() else '', 'stderr': result.get('stderr', '') if 'result' in locals() else ''}
+            ssids = [s.strip() for s in result.get('stdout', '').split('\n') if s.strip() and s.strip() != 'SSID:']
+
+        return {'ok': True, 'ssids': list(set(ssids))[:20], 'count': len(ssids)}
+    except Exception as e:
+        return {
+            'ok': False,
+            'error': str(e),
+            'cmd': cmd if 'cmd' in locals() else None,
+            'stdout': result.get('stdout', '') if 'result' in locals() else '',
+            'stderr': result.get('stderr', '') if 'result' in locals() else ''
+        }
 
 def eapol_pmkid_scan():
     """Capture EAPOL/PMKID handshakes for WPA cracking."""
