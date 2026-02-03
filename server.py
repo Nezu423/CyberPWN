@@ -647,7 +647,6 @@ def detect_pineapple():
     except Exception as e:
         return {'ok': False, 'error': str(e)}
 # --- Helper: run_capture (replaces _run_capture) ---
-import subprocess
 def run_capture(cmd, timeout=10):
     try:
         result = subprocess.run(cmd, shell=True, capture_output=True, timeout=timeout)
@@ -666,71 +665,6 @@ def run_capture(cmd, timeout=10):
             'returncode': -1,
             'timeout': True
         }
-
-
-# --- SNIFFER ROUTES (run command, return output) --- #
-@app.route('/api/sniffer/beacon', methods=['POST'])
-def sniffer_beacon():
-    cmd = "sudo tcpdump -i wlan0 type mgt subtype beacon -c 20 -vvv"
-    try:
-        output = subprocess.check_output(cmd, shell=True, timeout=10).decode('utf-8', errors='replace')
-        return jsonify({'output': output})
-    except Exception as e:
-        return jsonify({'error': str(e)})
-
-@app.route('/api/sniffer/deauth', methods=['POST'])
-def sniffer_deauth():
-    cmd = "sudo tcpdump -i wlan0 type mgt subtype deauth -c 20 -vvv"
-    try:
-        output = subprocess.check_output(cmd, shell=True, timeout=10).decode('utf-8', errors='replace')
-        return jsonify({'output': output})
-    except Exception as e:
-        return jsonify({'error': str(e)})
-
-@app.route('/api/sniffer/packet_count', methods=['POST'])
-def sniffer_packet_count():
-    cmd = "sudo tcpdump -i wlan0 -c 20 -vvv"
-    try:
-        output = subprocess.check_output(cmd, shell=True, timeout=10).decode('utf-8', errors='replace')
-        return jsonify({'output': output})
-    except Exception as e:
-        return jsonify({'error': str(e)})
-
-@app.route('/api/sniffer/eapol_pmkid', methods=['POST'])
-def sniffer_eapol_pmkid():
-    cmd = "sudo tcpdump -i wlan0 ether proto 0x888e -c 20 -vvv"
-    try:
-        output = subprocess.check_output(cmd, shell=True, timeout=10).decode('utf-8', errors='replace')
-        return jsonify({'output': output})
-    except Exception as e:
-        return jsonify({'error': str(e)})
-
-@app.route('/api/sniffer/packet_monitor', methods=['POST'])
-def sniffer_packet_monitor():
-    cmd = "sudo tcpdump -i wlan0 -c 20 -vvv"
-    try:
-        output = subprocess.check_output(cmd, shell=True, timeout=10).decode('utf-8', errors='replace')
-        return jsonify({'output': output})
-    except Exception as e:
-        return jsonify({'error': str(e)})
-
-@app.route('/api/sniffer/channel_analyzer', methods=['POST'])
-def sniffer_channel_analyzer():
-    cmd = "sudo iwlist wlan0 channel"
-    try:
-        output = subprocess.check_output(cmd, shell=True, timeout=10).decode('utf-8', errors='replace')
-        return jsonify({'output': output})
-    except Exception as e:
-        return jsonify({'error': str(e)})
-
-@app.route('/api/sniffer/raw_capture', methods=['POST'])
-def sniffer_raw_capture():
-    cmd = "sudo tcpdump -i wlan0 -c 20"
-    try:
-        output = subprocess.check_output(cmd, shell=True, timeout=10).decode('utf-8', errors='replace')
-        return jsonify({'output': output})
-    except Exception as e:
-        return jsonify({'error': str(e)})
 
 @app.route('/api/sniffer/detect_pwnagotchi', methods=['POST'])
 def sniffer_detect_pwnagotchi():
