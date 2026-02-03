@@ -5,128 +5,128 @@
 <meta name="viewport" content="width=240, height=320, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
 <title>CyberPWN — GATEKEEPER</title>
 <style>
-:root {
-  --nord0: #2E3440;
-  --nord1: #3B4252;
-  --nord2: #434C5E;
-  --nord3: #4C566A;
-  --nord4: #D8DEE9;
-  --nord5: #E5E9F0;
-  --nord6: #ECEFF4;
-  --nord7: #8FBCBB;
-  --nord8: #88C0D0;
-  --nord9: #81A1C1;
-  --nord10: #5E81AC;
-  --nord11: #BF616A;
-  --nord12: #D08770;
-  --nord13: #EBCB8B;
-  --nord14: #A3BE8C;
-  --nord15: #B48EAD;
-}
-* { box-sizing: border-box; }
-html, body {
-  height: 320px;
-  width: 240px;
-  margin: 0 auto;
-  padding: 0;
-  background: var(--nord0);
-  font-family: Arial, Helvetica, sans-serif;
-  color: var(--nord4);
-  box-shadow: 0 0 24px #000c;
-}
-body::before { display: none; }
-#layout-table { width: 100%; height: 100%; border-collapse: collapse; table-layout: fixed; }
-td.center-cell { vertical-align: middle; text-align: center; padding-bottom: 4px; }
-.top-txt {
-  font-size: 13px;
-  color: var(--nord8);
-  margin-bottom: 8px;
-  letter-spacing: 2px;
-  font-weight: bold;
-  text-transform: uppercase;
-  font-family: 'Cinzel Decorative', 'UnifrakturCook', serif;
-  text-shadow: 0 0 2px var(--nord3);
-}
-#d {
-  background: var(--nord2);
-  color: var(--nord4);
-  font-size: 18px;
-  font-weight: bold;
-  height: 32px;
-  width: 180px;
-  border: 2px solid var(--nord4);
-  margin: 0 auto 8px auto;
-  line-height: 32px;
-  letter-spacing: 4px;
-  text-align: center;
-  transition: border-color .2s, transform .1s, color .2s, background .2s;
-  border-radius: 0;
-  box-shadow: 0 0 8px #000a;
-  font-family: 'Cinzel Decorative', 'UnifrakturCook', serif;
-}
-#d.denied { animation: shake .4s ease; border-color: var(--nord11); color: var(--nord11); }
-@keyframes shake {
-  0%,100% { transform: translateX(0); }
-  20% { transform: translateX(-4px); }
-  40% { transform: translateX(4px); }
-  60% { transform: translateX(-2px); }
-  80% { transform: translateX(2px); }
-}
-#s {
-  color: var(--nord3);
-  font-size: 11px;
-  min-height: 16px;
-  margin-bottom: 8px;
-  text-transform: uppercase;
-  font-weight: bold;
-  text-align: center;
-}
-.keypad { margin: 0 auto; width: 180px; }
-.keypad td { padding: 2px; width: 33%; }
-.b {
-  width: 100%;
-  height: 32px;
-  background: var(--nord1);
-  color: var(--nord8);
-  font-size: 18px;
-  border: 2px solid var(--nord4);
-  border-radius: 0;
-  cursor: pointer;
-  transition: background .15s, color .15s, box-shadow .15s;
-  display: flex;
-  justify-content: center;
-  align-items: center;
-  font-family: 'Cinzel Decorative', 'UnifrakturCook', serif;
-  font-weight: bold;
-  position: relative;
-  box-shadow: 0 0 4px #000a;
-  letter-spacing: 1px;
-  text-shadow: 0 0 2px var(--nord0);
-}
-.b:focus, .b:active {
-  outline: none;
-  background: var(--nord8);
-  color: var(--nord0);
-  box-shadow: 0 0 8px #000a;
-}
-.b.gothic-digit {
-  color: var(--nord13);
-  font-size: 22px;
-  text-shadow: 0 0 2px var(--nord0);
-  font-family: 'Montserrat', 'Segoe UI', 'Arial', 'Helvetica Neue', Helvetica, Arial, sans-serif;
-}
-.b.cl {
-  color: var(--nord12);
-  font-size: 13px;
-  font-family: 'Cinzel Decorative', serif;
-  text-shadow: 0 0 2px var(--nord0);
-}
-.b.en {
-  color: var(--nord11);
-  font-size: 13px;
-  font-family: 'Cinzel Decorative', serif;
-  text-shadow: 0 0 2px var(--nord0);
-}
+    :root {
+      --nord0: #2E3440;
+      --nord1: #3B4252;
+      --nord2: #434C5E;
+      --nord3: #4C566A;
+      --nord4: #D8DEE9;
+      --nord5: #E5E9F0;
+      --nord6: #ECEFF4;
+      --nord7: #8FBCBB;
+      --nord8: #88C0D0;
+      --nord9: #81A1C1;
+      --nord10: #5E81AC;
+      --nord11: #BF616A;
+      --nord12: #D08770;
+      --nord13: #EBCB8B;
+      --nord14: #A3BE8C;
+      --nord15: #B48EAD;
+    }
+    * { box-sizing: border-box; }
+    html, body {
+      height: 320px;
+      width: 240px;
+      margin: 0 auto;
+      padding: 0;
+      background: var(--nord0);
+      font-family: Arial, Helvetica, sans-serif;
+      color: var(--nord4);
+      box-shadow: 0 0 24px #000c;
+    }
+    body::before { display: none; }
+    #layout-table { width: 100%; height: 100%; border-collapse: collapse; table-layout: fixed; }
+    td.center-cell { vertical-align: middle; text-align: center; padding-bottom: 4px; }
+    .top-txt {
+      font-size: 13px;
+      color: var(--nord8);
+      margin-bottom: 8px;
+      letter-spacing: 2px;
+      font-weight: bold;
+      text-transform: uppercase;
+      font-family: 'Cinzel Decorative', 'UnifrakturCook', serif;
+      text-shadow: 0 0 2px var(--nord3);
+    }
+    #d {
+      background: var(--nord2);
+      color: var(--nord4);
+      font-size: 18px;
+      font-weight: bold;
+      height: 32px;
+      width: 180px;
+      border: 2px solid var(--nord4);
+      margin: 0 auto 8px auto;
+      line-height: 32px;
+      letter-spacing: 4px;
+      text-align: center;
+      transition: border-color .2s, transform .1s, color .2s, background .2s;
+      border-radius: 0;
+      box-shadow: 0 0 8px #000a;
+      font-family: 'Cinzel Decorative', 'UnifrakturCook', serif;
+    }
+    #d.denied { animation: shake .4s ease; border-color: var(--nord11); color: var(--nord11); }
+    @keyframes shake {
+      0%,100% { transform: translateX(0); }
+      20% { transform: translateX(-4px); }
+      40% { transform: translateX(4px); }
+      60% { transform: translateX(-2px); }
+      80% { transform: translateX(2px); }
+    }
+    #s {
+      color: var(--nord3);
+      font-size: 11px;
+      min-height: 16px;
+      margin-bottom: 8px;
+      text-transform: uppercase;
+      font-weight: bold;
+      text-align: center;
+    }
+    .keypad { margin: 0 auto; width: 180px; }
+    .keypad td { padding: 2px; width: 33%; }
+    .b {
+      width: 100%;
+      height: 32px;
+      background: var(--nord1);
+      color: var(--nord8);
+      font-size: 18px;
+      border: 2px solid var(--nord4);
+      border-radius: 0;
+      cursor: pointer;
+      transition: background .15s, color .15s, box-shadow .15s;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      font-family: 'Cinzel Decorative', 'UnifrakturCook', serif;
+      font-weight: bold;
+      position: relative;
+      box-shadow: 0 0 4px #000a;
+      letter-spacing: 1px;
+      text-shadow: 0 0 2px var(--nord0);
+    }
+    .b:focus, .b:active {
+      outline: none;
+      background: var(--nord8);
+      color: var(--nord0);
+      box-shadow: 0 0 8px #000a;
+    }
+    .b.gothic-digit {
+      color: var(--nord13);
+      font-size: 22px;
+      text-shadow: 0 0 2px var(--nord0);
+      font-family: 'Montserrat', 'Segoe UI', 'Arial', 'Helvetica Neue', Helvetica, Arial, sans-serif;
+    }
+    .b.cl {
+      color: var(--nord12);
+      font-size: 13px;
+      font-family: 'Cinzel Decorative', serif;
+      text-shadow: 0 0 2px var(--nord0);
+    }
+    .b.en {
+      color: var(--nord11);
+      font-size: 13px;
+      font-family: 'Cinzel Decorative', serif;
+      text-shadow: 0 0 2px var(--nord0);
+    }
 </style>
 <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;700&display=swap" rel="stylesheet">
 </head>

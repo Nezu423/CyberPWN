@@ -6,26 +6,26 @@
 <title>CyberPWN — DASHBOARD</title>
 <!-- System fonts only for compatibility -->
 <style>
-:root {
-  --nord0: #2E3440;
-  --nord1: #3B4252;
-  --nord2: #434C5E;
-  --nord3: #4C566A;
-  --nord4: #D8DEE9;
-  --nord5: #E5E9F0;
-  --nord6: #ECEFF4;
-  --nord7: #8FBCBB;
-  --nord8: #88C0D0;
-  --nord9: #81A1C1;
-  --nord10: #5E81AC;
-  --nord11: #BF616A;
-  --nord12: #D08770;
-  --nord13: #EBCB8B;
-  --nord14: #A3BE8C;
-  --nord15: #B48EAD;
-}
-*{box-sizing:border-box}
-html,body{
+  :root {
+    --nord0: #2E3440;
+    --nord1: #3B4252;
+    --nord2: #434C5E;
+    --nord3: #4C566A;
+    --nord4: #D8DEE9;
+    --nord5: #E5E9F0;
+    --nord6: #ECEFF4;
+    --nord7: #8FBCBB;
+    --nord8: #88C0D0;
+    --nord9: #81A1C1;
+    --nord10: #5E81AC;
+    --nord11: #BF616A;
+    --nord12: #D08770;
+    --nord13: #EBCB8B;
+    --nord14: #A3BE8C;
+    --nord15: #B48EAD;
+  }
+  *{box-sizing:border-box}
+  html,body{
     height:320px;
     width:240px;
     margin:0;
@@ -34,22 +34,22 @@ html,body{
     color:var(--nord4);
     font-family: Arial, Helvetica, sans-serif;
     overflow-y:auto;
-}
-body{padding:8px 4px 16px;}
-.brand{
+  }
+  body{padding:8px 4px 16px;}
+  .brand{
     color:var(--nord8);
     font-size:11px;
     letter-spacing:2px;
     margin-bottom:4px;
     font-family:'Cinzel Decorative', 'UnifrakturCook', serif;
     text-shadow:0 1px 2px var(--nord3);
-}
-.tabs{
+  }
+  .tabs{
     display:flex;
     gap:4px;
     margin-bottom:10px;
-}
-.tab-btn{
+  }
+  .tab-btn{
     flex:1;
     padding:6px 0;
     background:var(--nord2);
@@ -60,24 +60,24 @@ body{padding:8px 4px 16px;}
     font-size:11px;
     border-radius:4px;
     transition:background .15s, color .15s, border .15s;
-}
-.tab-btn.active{
+  }
+  .tab-btn.active{
     background:var(--nord8);
     color:var(--nord0);
     border:1px solid var(--nord8);
-}
-.sections{margin-bottom:10px;}
-.section-title{
+  }
+  .sections{margin-bottom:10px;}
+  .section-title{
     font-size:12px;
     font-weight:bold;
     color:var(--nord7);
     margin:10px 0 4px 0;
     letter-spacing:1px;
     text-shadow:0 1px 2px var(--nord1);
-}
-.menu-list{list-style:none;padding:0;margin:0;}
-.menu-list li{margin-bottom:4px;}
-.menu-btn{
+  }
+  .menu-list{list-style:none;padding:0;margin:0;}
+  .menu-list li{margin-bottom:4px;}
+  .menu-btn{
     display:block;
     width:100%;
     background:var(--nord1);
@@ -89,13 +89,14 @@ body{padding:8px 4px 16px;}
     border-radius:4px;
     cursor:pointer;
     transition:background .15s, color .15s, border .15s;
-}
-.menu-btn:focus,.menu-btn:hover{
+    text-align:left;
+  }
+  .menu-btn:focus,.menu-btn:hover{
     background:var(--nord8);
     color:var(--nord0);
     border:1px solid var(--nord8);
-}
-.menu-group{margin-bottom:8px;}
+  }
+  .menu-group{margin-bottom:8px;}
 </style>
 <script>
 function showTab(tab){
