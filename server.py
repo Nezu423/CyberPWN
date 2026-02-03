@@ -9,7 +9,7 @@ try:
     ph = PasswordHasher()
     # Store the Argon2 hash of your PIN here (replace with your actual hash)
     
-    PIN_HASH = "$argon2id$v=19$m=65536,t=3,p=4$w4WzXT4h/M1P8Wh2944auQ$n5j8/DJw8L0u5oeCoPwgNO9WJZzZ4bIO6RN/KlqVjfw"
+    PIN_HASH = "$argon2id$v=19$m=65536,t=3,p=4$1Hs31Q605b4IULaFIgHmuQ$z8CVmG2Og1A3p9NHPzcIN5y/KCsRjtmIjBbM+v84C+8"
 except ImportError:
     ph = None
     PIN_HASH = None
