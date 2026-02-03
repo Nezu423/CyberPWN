@@ -3,16 +3,7 @@ import os
 import re
 import sys
 from flask import Flask, jsonify, request, render_template, send_from_directory, abort
-# Argon2 for PIN verification
-try:
-    from argon2 import PasswordHasher
-    ph = PasswordHasher()
-    # Store the Argon2 hash of your PIN here (replace with your actual hash)
-    
-    PIN_HASH = "$argon2id$v=19$m=65536,t=3,p=4$1Hs31Q605b4IULaFIgHmuQ$z8CVmG2Og1A3p9NHPzcIN5y/KCsRjtmIjBbM+v84C+8"
-except ImportError:
-    ph = None
-    PIN_HASH = None
+import hashlib
 
 # --- SETUP ---
 base_dir = os.path.abspath(os.path.dirname(__file__))
@@ -55,6 +46,8 @@ def _run_capture(cmd, timeout=10):
 ###########################
 
 # --- API: Verify PIN () ---
+PIN_SHA256 = hashlib.sha256("062823".encode()).hexdigest()
+
 @app.route('/api/verify_pin', methods=['POST'])
 def api_verify_pin():
     try:
@@ -62,18 +55,12 @@ def api_verify_pin():
         pin = (data.get("pin") or "").strip()
         if not pin:
             return jsonify({"ok": False, "error": "PIN required"})
-        if ph and PIN_HASH:
-            try:
-                ph.verify(PIN_HASH, pin)
-                return jsonify({"ok": True})
-            except Exception:
-                return jsonify({"ok": False})
+        # Use SHA256 for PIN verification
+        pin_hash = hashlib.sha256(pin.encode()).hexdigest()
+        if pin_hash == PIN_SHA256:
+            return jsonify({"ok": True})
         else:
-            # Fallback: plain text PIN
-            if pin == "062823":
-                return jsonify({"ok": True})
-            else:
-                return jsonify({"ok": False, "error": "Plain PIN denied"})
+            return jsonify({"ok": False, "error": "SHA256 PIN denied"})
     except Exception as e:
         return jsonify({"ok": False, "error": str(e)})
 @app.route('/')
