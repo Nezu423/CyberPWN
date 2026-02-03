@@ -1,6 +1,19 @@
 #!/bin/bash
 # cyberpwn_dashboard.sh - Colorful Armbian login dashboard
-
+echo -e "${MAGENTA}"
+echo "  "
+echo " $$$$$$$$\ $$\ "
+echo " \____$$  |\$$\  "
+echo '     $$  /  \$$\ '
+echo '   $$  /    \$$\'    
+echo '   $$  /      \$$\   '
+echo '  $$  /        \$$\  '
+echo ' $$  /          \$$\ '
+echo ' \__/            \__|'
+                    
+                    
+                    
+echo -e "${NC}"
 # ANSI color codes
 RED='\033[0;31m'
 GREEN='\033[0;32m'
@@ -62,24 +75,7 @@ clear
 
 # Always show static logo at the top (no animation, works with or without watch)
 # Large ASCII art for '7\'
-echo -e "${MAGENTA}"
-echo "  ________  "
-echo " /  _____/  "
-echo "/  /       "
-echo "  /        "
-echo " /         "
-echo "/_________ "
-echo "\\         "
-echo " \\        "
-echo "  \\       "
-echo "   \\      "
-echo "    \\     "
-echo "     \\    "
-echo "      \\   "
-echo "       \\  "
-echo "        \\ "
-echo "         \\"
-echo -e "${NC}"
+
 # For color with watch, use: watch -c -n 2 bash ~/Pictures/CyberPWN/scripts/cyberpwn_dashboard.sh
 
 echo -e "${CYAN}========= CyberPWN Armbian Dashboard =========${NC}"
