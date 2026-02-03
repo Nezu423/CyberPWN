@@ -1,0 +1,49 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Interface Status</title>
+    <link rel="stylesheet" href="/static/nord.css">
+    <style>
+        body { background: #2E3440; color: #D8DEE9; font-family: sans-serif; }
+        .container { max-width: 600px; margin: 40px auto; padding: 24px; background: #3B4252; border-radius: 8px; }
+        h1 { color: #88C0D0; }
+        .iface { margin-bottom: 16px; padding: 12px; background: #434C5E; border-radius: 6px; }
+        .up { color: #A3BE8C; }
+        .down { color: #BF616A; }
+        button { background: #88C0D0; color: #2E3440; border: none; padding: 8px 16px; border-radius: 4px; cursor: pointer; }
+        button:disabled { background: #4C566A; color: #D8DEE9; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Network Interfaces</h1>
+        <div id="iface-list"></div>
+    </div>
+    <script>
+    async function fetchStatus() {
+        const res = await fetch('/api/interfaces');
+        const data = await res.json();
+        const list = document.getElementById('iface-list');
+        list.innerHTML = '';
+        data.forEach(iface => {
+            const div = document.createElement('div');
+            div.className = 'iface';
+            div.innerHTML = `<b>${iface.name}</b> <span class="${iface.state}">${iface.state.toUpperCase()}</span> ` +
+                (iface.state === 'down' ? `<button onclick="bringUp('${iface.name}')">Bring Up</button>` : '<button disabled>Up</button>');
+            list.appendChild(div);
+        });
+    }
+    async function bringUp(name) {
+        await fetch('/api/bringup', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ name })
+        });
+        setTimeout(fetchStatus, 1000);
+    }
+    setInterval(fetchStatus, 2000);
+    fetchStatus();
+    </script>
+</body>
+</html>

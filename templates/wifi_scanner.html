@@ -58,10 +58,30 @@ function req(endpoint,logId){
                 log.focus();
             }catch(e){log.innerHTML="DATA ERROR";}
         }else log.innerHTML="ERROR: "+x.status;
-    };
-    x.ontimeout=function(){log.innerHTML="TIMEOUT";};
-    x.send();
-}
-</script>
-</body>
-</html>
+    <script>
+    function req(endpoint,logId){
+        var log=document.getElementById(logId);
+        log.innerHTML="Loading...";
+        var x=new XMLHttpRequest();
+        x.open("GET",endpoint,true);
+        x.timeout=15000;
+        x.onreadystatechange=function(){
+            if(x.readyState!==4)return;
+            if(x.status===200){
+                try{
+                    var d=JSON.parse(x.responseText);
+                    if(Array.isArray(d)){log.innerHTML="";for(var i=0;i<d.length;i++)log.innerHTML+=d[i]+"\n";}
+                    else log.innerHTML=d.log||d.status||JSON.stringify(d);
+                    log.focus();
+                }catch(e){log.innerHTML="DATA ERROR";}
+            }else log.innerHTML="ERROR: "+x.status;
+        };
+        x.ontimeout=function(){log.innerHTML="TIMEOUT";};
+        x.onerror=function(){log.innerHTML="ERROR";};
+        x.send();
+    }
+    setTimeout(function(){document.getElementById('ssid-log').focus();},100);
+
+    // Live auto-refresh for scan results
+    setInterval(function(){req('/api/scan_wifi','ssid-log');}, 3000);
+    // ...existing code...

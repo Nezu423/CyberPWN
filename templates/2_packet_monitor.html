@@ -17,22 +17,26 @@ body{background:#2E3440;color:#D8DEE9;font-family:'Montserrat',sans-serif;paddin
 <div class="result" id="result">Loading...</div>
 <button class="btn" onclick="location.href='success.html'">Back to Dashboard</button>
 <script>
-fetch('/api/sniffer/packet_monitor', {method:'POST'})
-  .then(r=>r.json())
-  .then(data=>{
-    let html = '';
-    if(data.ok) {
-      html += `<b>Packets: ${data.count}</b><ul style='padding-left:16px;'>`;
-      data.packets.forEach(pkt => html += `<li>${pkt}</li>`);
-      html += '</ul>';
-    } else {
-      html = `<span style='color:#BF616A;'>Error: ${data.error}</span>`;
-    }
-    document.getElementById('result').innerHTML = html;
-  })
-  .catch(e=>{
-    document.getElementById('result').innerHTML = '<span style="color:#BF616A;">Error: '+e+'</span>';
-  });
+function updatePacketMonitor() {
+  fetch('/api/sniffer/packet_monitor', {method:'POST'})
+    .then(r=>r.json())
+    .then(data=>{
+      let html = '';
+      if(data.ok) {
+        html += `<b>Packets: ${data.count}</b><ul style='padding-left:16px;'>`;
+        data.packets.forEach(pkt => html += `<li>${pkt}</li>`);
+        html += '</ul>';
+      } else {
+        html = `<span style='color:#BF616A;'>Error: ${data.error}</span>`;
+      }
+      document.getElementById('result').innerHTML = html;
+    })
+    .catch(e=>{
+      document.getElementById('result').innerHTML = '<span style="color:#BF616A;">Error: '+e+'</span>';
+    });
+}
+setInterval(updatePacketMonitor, 2000);
+updatePacketMonitor();
 </script>
 </body>
 </html>

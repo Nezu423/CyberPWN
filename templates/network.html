@@ -47,31 +47,35 @@ body{padding:20px 10px 30px;}
     <button class="btn" type="button" onclick="req('/api/network_info','nlog')">REFRESH INFO</button>
     <div id="nlog" class="log" tabindex="0">Ready. Press button to fetch IP, GW, hostname, WiFi, uptime.</div>
 </div>
-
-<div class="block">
-    <h3>PING</h3>
-    <button class="btn" type="button" onclick="ping('8.8.8.8')">PING 8.8.8.8</button>
-    <button class="btn" type="button" onclick="ping('1.1.1.1')">PING 1.1.1.1</button>
-    <button class="btn" type="button" onclick="req('/api/ping_gateway','plog')">PING GATEWAY</button>
-    <div id="plog" class="log" tabindex="0">Ready. Use buttons above for 8.8.8.8, 1.1.1.1, or gateway.</div>
-</div>
-
 <script>
 function req(endpoint, logId){
-    var el=document.getElementById(logId);
-    el.textContent='Loading...';
+    var log=document.getElementById(logId);
+    log.innerHTML="Loading...";
     var x=new XMLHttpRequest();
-    x.open('GET',endpoint,true);
+    x.open("GET",endpoint,true);
+    x.timeout=15000;
     x.onreadystatechange=function(){
         if(x.readyState!==4)return;
         if(x.status===200){
             try{
                 var d=JSON.parse(x.responseText);
-                el.textContent=Array.isArray(d)?d.join('\n'):(d.msg||JSON.stringify(d));
-                el.focus();
-            }catch(e){el.textContent='Parse error';}
-        }else{el.textContent='Error '+x.status;}
+                if(Array.isArray(d)){log.innerHTML="";for(var i=0;i<d.length;i++)log.innerHTML+=d[i]+"\n";}
+                else log.innerHTML=d.log||d.status||JSON.stringify(d);
+                log.focus();
+            }catch(e){log.innerHTML="DATA ERROR";}
+        }else log.innerHTML="ERROR: "+x.status;
     };
+    x.ontimeout=function(){log.innerHTML="TIMEOUT";};
+    x.onerror=function(){log.innerHTML="ERROR";};
+    x.send();
+}
+function ping(host){req('/api/ping?host='+encodeURIComponent(host),'plog');}
+setTimeout(function(){document.getElementById('nlog').focus();},100);
+
+// Live auto-refresh for system info and ping
+setInterval(function(){req('/api/network_info','nlog');}, 2000);
+setInterval(function(){req('/api/ping_gateway','plog');}, 4000);
+// ...existing code...
     x.send();
 }
 function ping(host){

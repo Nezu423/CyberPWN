@@ -17,22 +17,26 @@ body{background:#2E3440;color:#D8DEE9;font-family:'Montserrat',sans-serif;paddin
 <div class="result" id="result">Loading...</div>
 <button class="btn" onclick="location.href='success.html'">Back to Dashboard</button>
 <script>
-fetch('/api/sniffer/beacon', {method:'POST'})
-  .then(r=>r.json())
-  .then(data=>{
-    let html = '';
-    if(data.ok) {
-      html += `<b>Beacon SSIDs Found: ${data.count}</b><ul style='padding-left:16px;'>`;
-      data.ssids.forEach(ssid => html += `<li>${ssid}</li>`);
-      html += '</ul>';
-    } else {
-      html = `<span style='color:#BF616A;'>Error: ${data.error}</span>`;
-    }
-    document.getElementById('result').innerHTML = html;
-  })
-  .catch(e=>{
-    document.getElementById('result').innerHTML = '<span style="color:#BF616A;">Error: '+e+'</span>';
-  });
+function updateBeacon() {
+  fetch('/api/sniffer/beacon', {method:'POST'})
+    .then(r=>r.json())
+    .then(data=>{
+      let html = '';
+      if(data.ok) {
+        html += `<b>Beacon SSIDs Found: ${data.count}</b><ul style='padding-left:16px;'>`;
+        data.ssids.forEach(ssid => html += `<li>${ssid}</li>`);
+        html += '</ul>';
+      } else {
+        html = `<span style='color:#BF616A;'>Error: ${data.error}</span>`;
+      }
+      document.getElementById('result').innerHTML = html;
+    })
+    .catch(e=>{
+      document.getElementById('result').innerHTML = '<span style="color:#BF616A;">Error: '+e+'</span>';
+    });
+}
+setInterval(updateBeacon, 2000);
+updateBeacon();
 </script>
 </body>
 </html>
