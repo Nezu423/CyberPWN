@@ -881,6 +881,30 @@ def detect_pineapple():
     except Exception as e:
         return {'ok': False, 'error': str(e), 'cmd': cmd if 'cmd' in locals() else None, 'stdout': result.get('stdout', '') if 'result' in locals() else '', 'stderr': result.get('stderr', '') if 'result' in locals() else ''}
 
+def packet_count():
+    """Count packets on wireless interface."""
+    try:
+        mon_iface = get_monitor_interface() or 'wlan0'
+        cmd = f"sudo tcpdump -i {mon_iface} -n -c 20 2>/dev/null"
+        result = run_capture(cmd, timeout=8)
+        lines = [l.strip() for l in result.get('stdout', '').splitlines() if l.strip()]
+        return {'ok': True, 'packets': lines[:15], 'count': len(lines)}
+    except Exception as e:
+        return {'ok': False, 'error': str(e), 'cmd': cmd if 'cmd' in locals() else None, 'stdout': result.get('stdout', '') if 'result' in locals() else '', 'stderr': result.get('stderr', '') if 'result' in locals() else ''}
+
+def deauth_sniff():
+    """Sniff deauthentication frames on wireless interface."""
+    try:
+        mon_iface = get_monitor_interface()
+        if not mon_iface:
+            return {'ok': False, 'error': 'No monitor interface available', 'cmd': None, 'stdout': '', 'stderr': ''}
+        cmd = f"sudo tcpdump -i {mon_iface} -n -c 20 'type mgt subtype deauth' 2>/dev/null"
+        result = run_capture(cmd, timeout=8)
+        lines = [l.strip() for l in result.get('stdout', '').splitlines() if l.strip()]
+        return {'ok': True, 'deauth_packets': lines[:15], 'count': len(lines)}
+    except Exception as e:
+        return {'ok': False, 'error': str(e), 'cmd': cmd if 'cmd' in locals() else None, 'stdout': result.get('stdout', '') if 'result' in locals() else '', 'stderr': result.get('stderr', '') if 'result' in locals() else ''}
+
 # --- Sniffer API Routes ---
 @app.route('/api/sniffer/beacon', methods=['POST'])
 def sniffer_beacon() -> Response:
