@@ -208,73 +208,8 @@ def sniffer_raw_capture():
     except Exception as e:
         return jsonify({'error': str(e)})
 
-# --- API: Run any shell command and return output ---
-@app.route('/api/run_command', methods=['POST'])
-def run_command():
-    data = request.get_json(force=True, silent=True) or {}
-    cmd = (data.get('cmd') or '').strip()
-    if not cmd:
-        return jsonify({'error': 'No command provided'}), 400
-    try:
-        output = subprocess.check_output(cmd, shell=True, timeout=10).decode('utf-8', errors='replace')
-        return jsonify({'output': output})
-    except Exception as e:
-        return jsonify({'error': str(e)})
 
-# --- API: Network Info (IP, gateway, hostname, WiFi SSID) ---
-@app.route('/api/network_info')
-def network_info():
-    try:
-        info = []
-        try:
-            ip_raw = subprocess.check_output("hostname -I", shell=True, timeout=2).decode('utf-8').strip()
-            info.append(f"IP: {ip_raw.split()[0] if ip_raw else 'N/A'}")
-        except Exception:
-            info.append("IP: N/A")
-        try:
-            gw = subprocess.check_output("ip route | grep default | head -1", shell=True, timeout=2).decode('utf-8').strip()
-            if gw and "via " in gw:
-                info.append(f"GW: {gw.split()[2]}")
-            else:
-                info.append("GW: N/A")
-        except Exception:
-            info.append("GW: N/A")
-        try:
-            host = subprocess.check_output('hostname', shell=True, timeout=2).decode('utf-8').strip()
-            info.append(f"HOST: {host}")
-        except Exception:
-            info.append("HOST: N/A")
-        try:
-            out = subprocess.check_output("nmcli -t -f active,ssid dev wifi 2>/dev/null | grep yes || true", shell=True, timeout=2).decode('utf-8').strip()
-            ssid = (out.split(":")[-1].strip() if out else "") or "N/A"
-            info.append(f"WIFI: {ssid}")
-        except Exception:
-            info.append("WIFI: N/A")
-        try:
-            uptime = subprocess.check_output("uptime -p 2>/dev/null || cat /proc/uptime", shell=True, timeout=2).decode('utf-8').strip()
-            if uptime.startswith("up "):
-                info.append(f"UP: {uptime[3:][:30]}")
-            else:
-                info.append("UP: OK")
-        except Exception:
-            info.append("UP: N/A")
-        return jsonify(info)
-    except Exception as e:
-        return jsonify([f"ERROR: {str(e)}"])
 
-# --- API: Ping (sanitize host to prevent injection) ---
-@app.route('/api/ping')
-def ping_host():
-    host = request.args.get("host", "8.8.8.8").strip()
-    if not re.match(r"^[a-zA-Z0-9.\-]+$", host) or len(host) > 64:
-        return jsonify(["ERROR: Invalid host"])
-    try:
-        out = subprocess.check_output(f"ping -c 3 -W 2 {host} 2>&1", shell=True, timeout=15).decode('utf-8', errors='replace')
-        return jsonify([line for line in out.split("\n") if line][:12])
-    except subprocess.TimeoutExpired:
-        return jsonify([f"TIMEOUT: {host}"])
-    except Exception as e:
-        return jsonify([f"FAIL: {str(e)}"])
 
 @app.route('/api/ping_gateway')
 def ping_gateway():
