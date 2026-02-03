@@ -2,7 +2,7 @@ import subprocess
 import os
 import re
 import sys
-from flask import Flask, jsonify, request, render_template
+from flask import Flask, jsonify, request, render_template, send_from_directory, abort
 # Argon2 for PIN verification
 try:
     from argon2 import PasswordHasher
@@ -75,8 +75,27 @@ def api_verify_pin():
 def home():
     return render_template('index.html')  # Pin / main gatekeeper page
 
+
+# Handle favicon.ico requests gracefully
+@app.route('/favicon.ico')
+def favicon():
+    static_favicon = os.path.join(app.root_path, 'static', 'favicon.ico')
+    template_favicon = os.path.join(app.root_path, 'templates', 'favicon.ico')
+    if os.path.exists(static_favicon):
+        return send_from_directory(os.path.join(app.root_path, 'static'), 'favicon.ico')
+    elif os.path.exists(template_favicon):
+        return send_from_directory(os.path.join(app.root_path, 'templates'), 'favicon.ico')
+    else:
+        abort(404)
+
+# Serve only .html templates and handle missing templates with 404
 @app.route('/<path:filename>')
 def serve_page(filename):
+    if not filename.endswith('.html'):
+        filename += '.html'
+    template_path = os.path.join(app.template_folder, filename)
+    if not os.path.exists(template_path):
+        abort(404)
     return render_template(filename)
 
 # --- API: Network Info (IP, gateway, hostname, WiFi SSID) ---
@@ -481,6 +500,126 @@ def nmap_scan():
 
     except Exception as e:
         return jsonify([f"FAIL: {str(e)}"])
+
+# --- SNIFFER BACKEND LOGIC (CB1 SYSTEM TOOLS) ---
+import tempfile
+
+def beacon_sniff():
+    # Use tcpdump to capture beacon frames (type/subtype 0x80)
+    try:
+        with tempfile.NamedTemporaryFile(delete=False) as tmp:
+            cmd = "sudo tcpdump -i wlan0 type mgt subtype beacon -c 20 -vvv -w {}".format(tmp.name)
+            result = _run_capture(cmd, timeout=8)
+            # Optionally parse with tshark for SSIDs
+            parse_cmd = f"tshark -r {tmp.name} -Y 'wlan.ssid' -T fields -e wlan.ssid"
+            ssids = _run_capture(parse_cmd, timeout=5)
+            return {'ok': True, 'cmd': cmd, 'ssids': ssids.get('stdout', '').splitlines(), 'tcpdump': result}
+    except Exception as e:
+        return {'ok': False, 'error': str(e)}
+
+def deauth_sniff():
+    try:
+        cmd = "sudo tcpdump -i wlan0 type mgt subtype deauth -c 20 -vvv"
+        result = _run_capture(cmd, timeout=8)
+        return {'ok': True, 'cmd': cmd, 'output': result.get('stdout', '')}
+    except Exception as e:
+        return {'ok': False, 'error': str(e)}
+
+def packet_count():
+    try:
+        cmd = "sudo tcpdump -i wlan0 -c 20 -vvv"
+        result = _run_capture(cmd, timeout=8)
+        return {'ok': True, 'cmd': cmd, 'output': result.get('stdout', '')}
+    except Exception as e:
+        return {'ok': False, 'error': str(e)}
+
+def eapol_pmkid_scan():
+    try:
+        cmd = "sudo tcpdump -i wlan0 ether proto 0x888e -c 20 -vvv"
+        result = _run_capture(cmd, timeout=8)
+        return {'ok': True, 'cmd': cmd, 'output': result.get('stdout', '')}
+    except Exception as e:
+        return {'ok': False, 'error': str(e)}
+
+def packet_monitor():
+    try:
+        cmd = "sudo tcpdump -i wlan0 -c 20 -vvv"
+        result = _run_capture(cmd, timeout=8)
+        return {'ok': True, 'cmd': cmd, 'output': result.get('stdout', '')}
+    except Exception as e:
+        return {'ok': False, 'error': str(e)}
+
+def channel_analyzer():
+    try:
+        cmd = "sudo iwlist wlan0 channel"
+        result = _run_capture(cmd, timeout=5)
+        return {'ok': True, 'cmd': cmd, 'output': result.get('stdout', '')}
+    except Exception as e:
+        return {'ok': False, 'error': str(e)}
+
+def raw_capture():
+    try:
+        with tempfile.NamedTemporaryFile(delete=False) as tmp:
+            cmd = "sudo tcpdump -i wlan0 -c 20 -w {}".format(tmp.name)
+            result = _run_capture(cmd, timeout=8)
+            return {'ok': True, 'cmd': cmd, 'output': result}
+    except Exception as e:
+        return {'ok': False, 'error': str(e)}
+
+def detect_pwnagotchi():
+    try:
+        # Example: scan for Pwnagotchi signature SSIDs using nmap
+        cmd = "sudo nmap --script broadcast-wifi-discover"
+        result = _run_capture(cmd, timeout=10)
+        return {'ok': True, 'cmd': cmd, 'output': result.get('stdout', '')}
+    except Exception as e:
+        return {'ok': False, 'error': str(e)}
+
+def detect_pineapple():
+    try:
+        # Example: scan for WiFi Pineapple signature SSIDs using nmap
+        cmd = "sudo nmap --script broadcast-wifi-discover"
+        result = _run_capture(cmd, timeout=10)
+        return {'ok': True, 'cmd': cmd, 'output': result.get('stdout', '')}
+    except Exception as e:
+        return {'ok': False, 'error': str(e)}
+
+# --- SNIFFER ROUTES --- #
+@app.route('/api/sniffer/beacon', methods=['POST'])
+def sniffer_beacon():
+    return jsonify(beacon_sniff())
+
+@app.route('/api/sniffer/deauth', methods=['POST'])
+def sniffer_deauth():
+    return jsonify(deauth_sniff())
+
+@app.route('/api/sniffer/packet_count', methods=['POST'])
+def sniffer_packet_count():
+    return jsonify(packet_count())
+
+@app.route('/api/sniffer/eapol_pmkid', methods=['POST'])
+def sniffer_eapol_pmkid():
+    return jsonify(eapol_pmkid_scan())
+
+@app.route('/api/sniffer/packet_monitor', methods=['POST'])
+def sniffer_packet_monitor():
+    return jsonify(packet_monitor())
+
+@app.route('/api/sniffer/channel_analyzer', methods=['POST'])
+def sniffer_channel_analyzer():
+    return jsonify(channel_analyzer())
+
+@app.route('/api/sniffer/raw_capture', methods=['POST'])
+def sniffer_raw_capture():
+    return jsonify(raw_capture())
+
+@app.route('/api/sniffer/detect_pwnagotchi', methods=['POST'])
+def sniffer_detect_pwnagotchi():
+    return jsonify(detect_pwnagotchi())
+
+@app.route('/api/sniffer/detect_pineapple', methods=['POST'])
+def sniffer_detect_pineapple():
+    return jsonify(detect_pineapple())
 
 if __name__ == '__main__':
     # Listen on all interfaces

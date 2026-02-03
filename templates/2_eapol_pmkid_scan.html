@@ -1,0 +1,30 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=240, height=320, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>EAPOL/PMKID Scan Results</title>
+<link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;700&display=swap" rel="stylesheet">
+<style>
+body{background:#2E3440;color:#D8DEE9;font-family:'Montserrat',sans-serif;padding:10px;}
+.result{background:#3B4252;padding:8px;border-radius:6px;word-break:break-all;}
+.btn{margin-top:12px;padding:8px 16px;background:#88C0D0;color:#2E3440;border:none;border-radius:4px;font-weight:bold;cursor:pointer;}
+.btn:hover{background:#81A1C1;}
+</style>
+</head>
+<body>
+<h2>EAPOL/PMKID Scan Results</h2>
+<div class="result" id="result">Loading...</div>
+<button class="btn" onclick="location.href='success.html'">Back to Dashboard</button>
+<script>
+fetch('/api/sniffer/eapol_pmkid', {method:'POST'})
+  .then(r=>r.json())
+  .then(data=>{
+    document.getElementById('result').textContent = JSON.stringify(data, null, 2);
+  })
+  .catch(e=>{
+    document.getElementById('result').textContent = 'Error: '+e;
+  });
+</script>
+</body>
+</html>

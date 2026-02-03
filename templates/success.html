@@ -2,53 +2,188 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<meta name="viewport" content="width=240, height=320, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
 <title>CyberPWN — DASHBOARD</title>
-<script>if(!sessionStorage.getItem("_k")){window.location.href="/";}</script>
+<link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;700&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=UnifrakturCook:wght@700&family=Cinzel+Decorative:wght@700&display=swap" rel="stylesheet">
 <style>
+:root {
+  --nord0: #2E3440;
+  --nord1: #3B4252;
+  --nord2: #434C5E;
+  --nord3: #4C566A;
+  --nord4: #D8DEE9;
+  --nord5: #E5E9F0;
+  --nord6: #ECEFF4;
+  --nord7: #8FBCBB;
+  --nord8: #88C0D0;
+  --nord9: #81A1C1;
+  --nord10: #5E81AC;
+  --nord11: #BF616A;
+  --nord12: #D08770;
+  --nord13: #EBCB8B;
+  --nord14: #A3BE8C;
+  --nord15: #B48EAD;
+}
 *{box-sizing:border-box}
 html,body{
-    height:100%;
+    height:320px;
+    width:240px;
     margin:0;
     padding:0;
-    background:#000 url('https://i.imgur.com/0v1CGpT.png') center 40px no-repeat;
-    background-size:120px 120px;
-    color:#fff;
+    background:var(--nord0);
+    color:var(--nord4);
     font-family:'Montserrat', 'Segoe UI', 'Arial', 'Helvetica Neue', Helvetica, Arial, sans-serif;
     overflow-y:auto;
 }
-body{padding:24px 14px 40px;}
-.brand{color:#fff;font-size:11px;letter-spacing:3px;margin-bottom:4px;}
-.head{border-bottom:1px solid #fff;padding-bottom:10px;margin-bottom:16px;display:flex;justify-content:space-between;align-items:baseline;}
-.t1{color:#fff;font-size:16px;font-weight:bold;letter-spacing:1px;text-shadow:0 0 2px #000;}
-.ver{color:#fff;font-size:11px;}
-.sub{color:#fff;font-size:10px;margin-bottom:16px;line-height:1.4;}
-a.btn{display:block;width:100%;background:#000;color:#fff;text-decoration:none;padding:16px 14px;margin-bottom:12px;border:1px solid #fff;font-size:14px;font-weight:bold;transition:background .15s, color .15s;}
-a.btn:focus,a.btn:active{background:#fff;color:#000;outline:none;border-color:#fff;}
-a.btn.out{color:#fff;margin-top:24px;text-align:center;}
-a.btn.out:focus{background:#111;color:#fff;}
+body{padding:8px 4px 16px;}
+.brand{
+    color:var(--nord8);
+    font-size:11px;
+    letter-spacing:2px;
+    margin-bottom:4px;
+    font-family:'Cinzel Decorative', 'UnifrakturCook', serif;
+    text-shadow:0 1px 2px var(--nord3);
+}
+.tabs{
+    display:flex;
+    gap:4px;
+    margin-bottom:10px;
+}
+.tab-btn{
+    flex:1;
+    padding:6px 0;
+    background:var(--nord2);
+    color:var(--nord4);
+    border:1px solid var(--nord3);
+    font-weight:bold;
+    cursor:pointer;
+    font-size:11px;
+    border-radius:4px;
+    transition:background .15s, color .15s, border .15s;
+}
+.tab-btn.active{
+    background:var(--nord8);
+    color:var(--nord0);
+    border:1px solid var(--nord8);
+}
+.sections{margin-bottom:10px;}
+.section-title{
+    font-size:12px;
+    font-weight:bold;
+    color:var(--nord7);
+    margin:10px 0 4px 0;
+    letter-spacing:1px;
+    text-shadow:0 1px 2px var(--nord1);
+}
+.menu-list{list-style:none;padding:0;margin:0;}
+.menu-list li{margin-bottom:4px;}
+.menu-btn{
+    display:block;
+    width:100%;
+    background:var(--nord1);
+    color:var(--nord13);
+    border:1px solid var(--nord3);
+    padding:6px 8px;
+    font-size:10px;
+    font-weight:bold;
+    border-radius:4px;
+    cursor:pointer;
+    transition:background .15s, color .15s, border .15s;
+}
+.menu-btn:focus,.menu-btn:hover{
+    background:var(--nord8);
+    color:var(--nord0);
+    border:1px solid var(--nord8);
+}
+.menu-group{margin-bottom:8px;}
 </style>
-<link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;700&display=swap" rel="stylesheet">
-</style>
-<link href="https://fonts.googleapis.com/css2?family=UnifrakturCook:wght@700&family=Cinzel+Decorative:wght@700&display=swap" rel="stylesheet">
-</style>
+<script>
+function showTab(tab){
+  document.querySelectorAll('.tab-btn').forEach(btn=>btn.classList.remove('active'));
+  document.querySelectorAll('.tab-content').forEach(sec=>sec.style.display='none');
+  document.getElementById(tab+'-tab').style.display='block';
+  document.getElementById(tab+'-btn').classList.add('active');
+}
+window.onload=function(){showTab('listener');}
+</script>
 </head>
 <body>
-<div class="brand">CYBERPWN</div>
-<div class="head">
-    <span class="t1">COMMAND_NODE</span>
-    <span class="ver">v5</span>
+<div class="brand">CYBERPWN DASHBOARD</div>
+<div class="tabs">
+  <button class="tab-btn" id="listener-btn" onclick="showTab('listener')">Listener</button>
+  <button class="tab-btn" id="scanner-btn" onclick="showTab('scanner')">Scanner</button>
+  <button class="tab-btn" id="wardriving-btn" onclick="showTab('wardriving')">Wardriving</button>
+  <button class="tab-btn" id="attack-btn" onclick="showTab('attack')">Attack</button>
 </div>
-<div class="sub">Pentest suite — WiFi, Ethernet, Web</div>
-
-<a href="wifi.html" class="btn" tabindex="1">&gt; WIFI PAYLOADS</a>
-<a href="ethernet.html" class="btn" tabindex="2">&gt; ETHERNET PAYLOADS</a>
-<a href="urls.html" class="btn" tabindex="3">&gt; WEB TOOLS (URL discovery)</a>
-<a href="#" class="btn out" tabindex="4" onclick="logout();return false;">[ LOGOUT ]</a>
-
-<script>
-window.onload=function(){setTimeout(function(){var a=document.querySelector('a.btn:not(.out)');if(a)a.focus();},100);}
-function logout(){sessionStorage.removeItem("_k");window.location.href="/";}
-</script>
+<div class="sections">
+  <!-- Listener Tab -->
+  <div class="tab-content" id="listener-tab" style="display:none;">
+    <div class="section-title">Sniffers</div>
+    <div class="menu-group">
+      <ul class="menu-list">
+        <li><a href="2_beacon_sniff.html" class="menu-btn" data-label="Beacon Sniff">Beacon Sniff</a></li>
+        <li><a href="2_deauth_sniff.html" class="menu-btn" data-label="Deauth Sniff">Deauth Sniff</a></li>
+        <li><a href="2_packet_count.html" class="menu-btn" data-label="Packet Count">Packet Count</a></li>
+        <li><a href="2_eapol_pmkid_scan.html" class="menu-btn" data-label="EAPOL/PMKID Scan">EAPOL/PMKID Scan</a></li>
+        <li><a href="2_packet_monitor.html" class="menu-btn" data-label="Packet Monitor">Packet Monitor</a></li>
+        <li><a href="2_channel_analyzer.html" class="menu-btn" data-label="Channel Analyzer">Channel Analyzer</a></li>
+        <li><a href="2_raw_capture.html" class="menu-btn" data-label="Raw Capture">Raw Capture</a></li>
+        <li><a href="2_detect_pwnagotchi.html" class="menu-btn" data-label="Detect Pwnagotchi">Detect Pwnagotchi</a></li>
+        <li><a href="2_detect_pineapple.html" class="menu-btn" data-label="Detect WiFi Pineapple">Detect WiFi Pineapple</a></li>
+      </ul>
+    </div>
+  </div>
+  <!-- Scanner Tab -->
+  <div class="tab-content" id="scanner-tab" style="display:none;">
+    <div class="section-title">Scanners</div>
+    <div class="menu-group">
+      <ul class="menu-list">
+        <li><button class="menu-btn">Ping Scan</button></li>
+        <li><button class="menu-btn">ICMP Scan</button></li>
+        <li><button class="menu-btn">ARP Scan</button></li>
+        <li><button class="menu-btn">Port Scan</button></li>
+        <li><button class="menu-btn">SSH Scan</button></li>
+        <li><button class="menu-btn">Telnet Scan</button></li>
+        <li><button class="menu-btn">SMTP Scan</button></li>
+        <li><button class="menu-btn">DNS Scan</button></li>
+        <li><button class="menu-btn">HTTP Scan</button></li>
+        <li><button class="menu-btn">HTTPS Scan</button></li>
+        <li><button class="menu-btn">RDP Scan</button></li>
+      </ul>
+    </div>
+  </div>
+  <!-- Wardriving Tab -->
+  <div class="tab-content" id="wardriving-tab" style="display:none;">
+    <div class="section-title">Wardriving</div>
+    <div class="menu-group">
+      <ul class="menu-list">
+        <li><button class="menu-btn">Deauth Mode (Catch Handshakes, Get Password, Log SSID)</button></li>
+        <li><button class="menu-btn">Normal Mode (Get SSID & Handshake)</button></li>
+      </ul>
+    </div>
+  </div>
+  <!-- Attack Tab -->
+  <div class="tab-content" id="attack-tab" style="display:none;">
+    <div class="section-title">Attacks</div>
+    <div class="menu-group">
+      <ul class="menu-list">
+        <li><button class="menu-btn">Beacon Spam (Random)</button></li>
+        <li><button class="menu-btn">Funny SSID Beacon</button></li>
+        <li><button class="menu-btn">Rick Roll Beacon</button></li>
+        <li><button class="menu-btn">Probe Request Flood</button></li>
+        <li><button class="menu-btn">Evil Portal</button></li>
+        <li><button class="menu-btn">Deauth Flood</button></li>
+        <li><button class="menu-btn">AP Clone Spam</button></li>
+        <li><button class="menu-btn">Deauth Targeted</button></li>
+        <li><button class="menu-btn">Karma</button></li>
+        <li><button class="menu-btn">Bad Msg for APs/Switches</button></li>
+        <li><button class="menu-btn">Bad Msg Targeted</button></li>
+        <li><button class="menu-btn">Assoc Sleep</button></li>
+        <li><button class="menu-btn">Sleep Targeted</button></li>
+      </ul>
+    </div>
+  </div>
+</div>
 </body>
 </html>

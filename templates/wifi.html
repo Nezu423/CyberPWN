@@ -23,8 +23,16 @@ body{padding:20px 10px 30px;}
 .back{color:#fff;text-decoration:none;border:1px solid #222;padding:5px 10px;font-size:11px;background:transparent;}
 .back:focus{background:#fff;color:#000;}
 .payload-list{display:flex;flex-direction:column;gap:12px;margin-top:10px;}
-.acc-btn{width:100%;background:#000;color:#fff;border:1px solid #fff;padding:16px;text-align:left;font-size:15px;font-weight:bold;cursor:pointer;transition:background .15s, color .15s;}
+.acc-btn{width:100%;background:#000;color:#00ff6a;border:1px solid #fff;padding:16px;text-align:left;font-size:15px;font-weight:bold;cursor:pointer;transition:background .15s, color .15s;}
 .acc-btn:focus,.acc-btn:hover{background:#fff;color:#000;outline:none;}
+.beacon {color:#00ffe7;border-color:#00ffe7;}
+.beacon:focus,.beacon:hover {background:#00ffe7;color:#000;}
+.vuln {color:#ff00c8;border-color:#ff00c8;}
+.vuln:focus,.vuln:hover {background:#ff00c8;color:#000;}
+.evil {color:#ffd600;border-color:#ffd600;}
+.evil:focus,.evil:hover {background:#ffd600;color:#000;}
+.deauth {color:#ff3c00;border-color:#ff3c00;}
+.deauth:focus,.deauth:hover {background:#ff3c00;color:#000;}
 </style>
 <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;700&display=swap" rel="stylesheet">
 </style>
@@ -38,10 +46,10 @@ body{padding:20px 10px 30px;}
 </div>
 
 <div class="payload-list">
-    <a class="acc-btn" href="wifi_scanner.html">&gt; WIFI SCANNER</a>
-    <a class="acc-btn" href="vuln_check.html">&gt; VULN CHECK (NMAP)</a>
-    <a class="acc-btn" href="evil_twin.html">&gt; EVIL TWIN</a>
-    <a class="acc-btn" href="deauth.html">&gt; DEAUTH</a>
+    <a class="acc-btn beacon" href="wifi_scanner.html">&gt; BEACON SNIFF</a>
+    <a class="acc-btn vuln" href="vuln_check.html">&gt; VULN CHECK (NMAP)</a>
+    <a class="acc-btn evil" href="evil_twin.html">&gt; EVIL TWIN</a>
+    <a class="acc-btn deauth" href="deauth.html">&gt; DEAUTH</a>
 </div>
 </body>
 </html>

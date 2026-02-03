@@ -2,74 +2,69 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<meta name="viewport" content="width=240, height=320, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
 <title>CyberPWN — GATEKEEPER</title>
 <style>
+:root {
+  --nord0: #2E3440;
+  --nord1: #3B4252;
+  --nord2: #434C5E;
+  --nord3: #4C566A;
+  --nord4: #D8DEE9;
+  --nord5: #E5E9F0;
+  --nord6: #ECEFF4;
+  --nord7: #8FBCBB;
+  --nord8: #88C0D0;
+  --nord9: #81A1C1;
+  --nord10: #5E81AC;
+  --nord11: #BF616A;
+  --nord12: #D08770;
+  --nord13: #EBCB8B;
+  --nord14: #A3BE8C;
+  --nord15: #B48EAD;
+}
 * { box-sizing: border-box; }
 html, body {
-  height: 100%;
-  min-width: 240px;
-  min-height: 320px;
-  max-width: 240px;
-  max-height: 320px;
-  width: 240px;
   height: 320px;
+  width: 240px;
   margin: 0 auto;
   padding: 0;
-  background: #000 url('https://i.imgur.com/0v1CGpT.png') center 40px no-repeat;
-  background-size: 120px 120px;
+  background: var(--nord0);
   font-family: 'Montserrat', 'Segoe UI', 'Arial', 'Helvetica Neue', Helvetica, Arial, sans-serif;
-  overflow: hidden;
-  color: #fff;
+  color: var(--nord4);
   box-shadow: 0 0 24px #000c;
 }
-
-body::before {
-  content: "";
-  position: fixed;
-  top: 0; left: 0; right: 0; bottom: 0;
-  background: none;
-  pointer-events: none;
-  z-index: 0;
-}
-
-/* Layout */
-/* Layout for 240x320 */
+body::before { display: none; }
 #layout-table { width: 100%; height: 100%; border-collapse: collapse; table-layout: fixed; }
 td.center-cell { vertical-align: middle; text-align: center; padding-bottom: 4px; }
-
-/* Top text */
 .top-txt {
   font-size: 13px;
-  color: #fff;
+  color: var(--nord8);
   margin-bottom: 8px;
   letter-spacing: 2px;
   font-weight: bold;
   text-transform: uppercase;
-  font-family: 'UnifrakturCook', 'Old English Text MT', 'Cinzel Decorative', serif;
-  text-shadow: 0 0 2px #000, 0 0 1px #fff;
+  font-family: 'Cinzel Decorative', 'UnifrakturCook', serif;
+  text-shadow: 0 0 2px var(--nord3);
 }
-
-/* Display */
 #d {
-  background: #111;
-  color: #fff;
+  background: var(--nord2);
+  color: var(--nord4);
   font-size: 18px;
   font-weight: bold;
   height: 32px;
   width: 180px;
-  border: 2px solid #fff;
+  border: 2px solid var(--nord4);
   margin: 0 auto 8px auto;
   line-height: 32px;
   letter-spacing: 4px;
   text-align: center;
   transition: border-color .2s, transform .1s, color .2s, background .2s;
-  border-radius: 6px;
+  border-radius: 0;
   box-shadow: 0 0 8px #000a;
-  font-family: 'UnifrakturCook', 'Old English Text MT', 'Cinzel Decorative', serif;
+  font-family: 'Cinzel Decorative', 'UnifrakturCook', serif;
 }
-#d.denied { animation: shake .4s ease; border-color: #fff; color: #fff; }
-
+#d.denied { animation: shake .4s ease; border-color: var(--nord11); color: var(--nord11); }
 @keyframes shake {
   0%,100% { transform: translateX(0); }
   20% { transform: translateX(-4px); }
@@ -77,10 +72,8 @@ td.center-cell { vertical-align: middle; text-align: center; padding-bottom: 4px
   60% { transform: translateX(-2px); }
   80% { transform: translateX(2px); }
 }
-
-/* Status text */
 #s {
-  color: #555;
+  color: var(--nord3);
   font-size: 11px;
   min-height: 16px;
   margin-bottom: 8px;
@@ -88,58 +81,54 @@ td.center-cell { vertical-align: middle; text-align: center; padding-bottom: 4px
   font-weight: bold;
   text-align: center;
 }
-
-/* Keypad */
 .keypad { margin: 0 auto; width: 180px; }
 .keypad td { padding: 2px; width: 33%; }
-
-/* Button base */
 .b {
   width: 100%;
   height: 32px;
-  background: #000;
-  color: #fff;
+  background: var(--nord1);
+  color: var(--nord8);
   font-size: 18px;
-  border: 1.5px solid #fff;
+  border: 2px solid var(--nord4);
   border-radius: 0;
   cursor: pointer;
   transition: background .15s, color .15s, box-shadow .15s;
   display: flex;
   justify-content: center;
   align-items: center;
-  font-family: 'UnifrakturCook', 'Old English Text MT', 'Cinzel Decorative', serif;
+  font-family: 'Cinzel Decorative', 'UnifrakturCook', serif;
   font-weight: bold;
   position: relative;
   box-shadow: 0 0 4px #000a;
   letter-spacing: 1px;
-  text-shadow: 0 0 2px #000;
+  text-shadow: 0 0 2px var(--nord0);
 }
 .b:focus, .b:active {
   outline: none;
-  background: #222;
-  color: #fff;
+  background: var(--nord8);
+  color: var(--nord0);
   box-shadow: 0 0 8px #000a;
 }
-
-/* Gothic digit style: use cross symbol ✝ for digits */
 .b.gothic-digit {
+  color: var(--nord13);
   font-size: 22px;
-  color: #fff;
-  text-shadow: 0 0 2px #000;
+  text-shadow: 0 0 2px var(--nord0);
   font-family: 'Montserrat', 'Segoe UI', 'Arial', 'Helvetica Neue', Helvetica, Arial, sans-serif;
 }
-
-.b.cl, .b.en {
+.b.cl {
+  color: var(--nord12);
   font-size: 13px;
-  color: #fff;
   font-family: 'Cinzel Decorative', serif;
-  text-shadow: 0 0 2px #000;
+  text-shadow: 0 0 2px var(--nord0);
+}
+.b.en {
+  color: var(--nord11);
+  font-size: 13px;
+  font-family: 'Cinzel Decorative', serif;
+  text-shadow: 0 0 2px var(--nord0);
 }
 </style>
-<!-- Montserrat font import for readability -->
 <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;700&display=swap" rel="stylesheet">
-
-
 </head>
 <body onload="_L()">
 <table id="layout-table"><tr><td class="center-cell">
@@ -171,16 +160,16 @@ td.center-cell { vertical-align: middle; text-align: center; padding-bottom: 4px
 </td></tr></table>
 <script>
 var _i="";
-function _L(){localStorage.removeItem("_l");_u();_m("ENTER PIN","#555");}
+function _L(){localStorage.removeItem("_l");_u();_m("ENTER PIN",getComputedStyle(document.body).getPropertyValue('--nord3'))}
 function _a(n){if(_i.length<8){_i+=n;_u();}}
-function _c(){_i="";_u();_m("ENTER PIN","#555");var d=document.getElementById("d");d.classList.remove("denied");}
+function _c(){_i="";_u();_m("ENTER PIN",getComputedStyle(document.body).getPropertyValue('--nord3'));var d=document.getElementById("d");d.classList.remove("denied");}
 function _u(){var h="";for(var j=0;j<_i.length;j++)h+="*";document.getElementById("d").innerHTML=h;}
 function _m(t,c){var o=document.getElementById("s");o.innerHTML=t;o.style.color=c;}
 function _v(){
   if(_i.length===0)return;
   var d=document.getElementById("d");
   d.classList.remove("denied");
-  _m("VERIFYING...","#FCEE0A");
+  _m("VERIFYING...",getComputedStyle(document.body).getPropertyValue('--nord13'));
   var x = new XMLHttpRequest();
   x.open("POST", "/api/verify_pin", true);
   x.setRequestHeader("Content-Type", "application/json");
@@ -191,22 +180,22 @@ function _v(){
         var resp = JSON.parse(x.responseText);
         if(resp && resp.ok){
           sessionStorage.setItem("_k","1");
-          _m("ACCESS GRANTED","#fff");
-          d.style.borderColor="#fff";
+          _m("ACCESS GRANTED",getComputedStyle(document.body).getPropertyValue('--nord4'));
+          d.style.borderColor=getComputedStyle(document.body).getPropertyValue('--nord4');
           setTimeout(function(){window.location.href="success.html";},500);
         }else{
           d.classList.add("denied");
-          _m("DENIED","#fff");_i="";_u();
+          _m("DENIED",getComputedStyle(document.body).getPropertyValue('--nord11'));_i="";_u();
           setTimeout(function(){d.classList.remove("denied");},500);
         }
       }catch(e){
         d.classList.add("denied");
-        _m("ERROR","#fff");_i="";_u();
+        _m("ERROR",getComputedStyle(document.body).getPropertyValue('--nord11'));_i="";_u();
         setTimeout(function(){d.classList.remove("denied");},500);
       }
     }else{
       d.classList.add("denied");
-      _m("SERVER ERROR","#fff");_i="";_u();
+      _m("SERVER ERROR",getComputedStyle(document.body).getPropertyValue('--nord11'));_i="";_u();
       setTimeout(function(){d.classList.remove("denied");},500);
     }
   };
