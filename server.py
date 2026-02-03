@@ -57,18 +57,23 @@ def _run_capture(cmd, timeout=10):
 # --- API: Verify PIN () ---
 @app.route('/api/verify_pin', methods=['POST'])
 def api_verify_pin():
-    if not ph or not PIN_HASH:
-        return jsonify({"ok": False, "error": "Argon2 not available or PIN hash not set"})
     try:
         data = request.get_json(force=True, silent=True) or {}
         pin = (data.get("pin") or "").strip()
         if not pin:
             return jsonify({"ok": False, "error": "PIN required"})
-        try:
-            ph.verify(PIN_HASH, pin)
-            return jsonify({"ok": True})
-        except Exception:
-            return jsonify({"ok": False})
+        if ph and PIN_HASH:
+            try:
+                ph.verify(PIN_HASH, pin)
+                return jsonify({"ok": True})
+            except Exception:
+                return jsonify({"ok": False})
+        else:
+            # Fallback: plain text PIN
+            if pin == "062823":
+                return jsonify({"ok": True})
+            else:
+                return jsonify({"ok": False, "error": "Plain PIN denied"})
     except Exception as e:
         return jsonify({"ok": False, "error": str(e)})
 @app.route('/')
