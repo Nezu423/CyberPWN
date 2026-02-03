@@ -6,10 +6,7 @@ echo "|___  \\ \\   ";
 echo "   / / \\ \\  ";
 echo "  / /   \\ \\ ";
 echo " /_/     \\_\\";
-echo "            ";
-                    
-                    
-                    
+echo "            "; 
 echo -e "${NC}"
 # ANSI color codes
 RED='\033[0;31m'
@@ -19,12 +16,10 @@ BLUE='\033[0;34m'
 CYAN='\033[0;36m'
 MAGENTA='\033[0;35m'
 NC='\033[0m' # No Color
-
 # System usage
 CPU_USAGE=$(top -bn1 | grep "Cpu(s)" | awk '{print $2 + $4}')
 MEM_USAGE=$(free -m | awk '/Mem:/ { printf("%s/%s MB (%.2f%%)", $3, $2, $3/$2 * 100.0) }')
 DISK_USAGE=$(df -h / | awk 'NR==2 {print $3 "/" $2 " (" $5 ")"}')
-
 # CPU temp
 if [ -f /etc/armbianmonitor/datasources/soctemp ]; then
   CPU_TEMP=$(cat /etc/armbianmonitor/datasources/soctemp)
