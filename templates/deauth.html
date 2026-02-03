@@ -7,22 +7,35 @@
 <script>if(!sessionStorage.getItem("_k")){window.location.href="/";}</script>
 <style>
 *{box-sizing:border-box}
-html,body{height:100%;margin:0;padding:0;background:#0d0d0d;font-family:monospace;overflow:hidden;color:#AAA;}
+html,body{
+    height:100%;
+    margin:0;
+    padding:0;
+    background:#000 url('https://i.imgur.com/0v1CGpT.png') center 40px no-repeat;
+    background-size:120px 120px;
+    color:#fff;
+    font-family:'Montserrat', 'Segoe UI', 'Arial', 'Helvetica Neue', Helvetica, Arial, sans-serif;
+    overflow:hidden;
+}
 #layout-table{width:100%;height:100%;border-collapse:collapse;}
 td.center-cell{vertical-align:middle;text-align:center;padding-bottom:12px;}
 .head-row{display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;}
-.t1{color:#FCEE0A;font-size:12px;}
-.back{color:#555;text-decoration:none;border:1px solid #2a2a2a;padding:2px 6px;font-size:10px;}
-.back:focus{background:#FCEE0A;color:#000;}
-#list{width:100%;max-height:100px;background:#0a0a0a;border:1px solid #2a2a2a;color:#0F0;font-size:11px;padding:6px;overflow-y:scroll;text-align:left;white-space:pre-wrap;margin:6px auto;}
-#d{background:#000;color:#FCEE0A;font-size:18px;font-weight:bold;min-height:36px;width:220px;border:2px solid #2a2a2a;margin:0 auto 4px auto;line-height:36px;letter-spacing:2px;text-align:center;}
-#s{color:#555;font-size:10px;min-height:14px;margin-bottom:6px;text-transform:uppercase;font-weight:bold;}
+.t1{color:#fff;font-size:12px;}
+.back{color:#fff;text-decoration:none;border:1px solid #fff;padding:2px 6px;font-size:10px;background:transparent;}
+.back:focus{background:#fff;color:#000;}
+#list{width:100%;max-height:100px;background:#000;border:1px solid #fff;color:#fff;font-size:11px;padding:6px;overflow-y:scroll;text-align:left;white-space:pre-wrap;margin:6px auto;}
+#d{background:#000;color:#fff;font-size:18px;font-weight:bold;min-height:36px;width:220px;border:2px solid #fff;margin:0 auto 4px auto;line-height:36px;letter-spacing:2px;text-align:center;}
+#s{color:#fff;font-size:10px;min-height:14px;margin-bottom:6px;text-transform:uppercase;font-weight:bold;}
 .keypad{margin:0 auto;width:220px;}
 .keypad td{padding:2px;width:33%;}
-.b{width:100%;height:42px;background:#1a1a1a;color:#AAA;font-size:18px;border:1px solid #2a2a2a;cursor:pointer;}
-.b:focus,.b:active{background:#FCEE0A;color:#000;outline:none;}
-.cl{color:#555;}.en{color:#FCEE0A;}
+.b{width:100%;height:42px;background:#000;color:#fff;font-size:18px;border:1px solid #fff;cursor:pointer;}
+.b:focus,.b:active{background:#fff;color:#000;outline:none;}
+.cl{color:#fff;}.en{color:#fff;}
 .scan{font-size:11px;}
+</style>
+<link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;700&display=swap" rel="stylesheet">
+</style>
+<link href="https://fonts.googleapis.com/css2?family=UnifrakturCook:wght@700&family=Cinzel+Decorative:wght@700&display=swap" rel="stylesheet">
 </style>
 </head>
 <body onload="_L()">

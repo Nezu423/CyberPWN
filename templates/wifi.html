@@ -7,22 +7,28 @@
 <script>if(!sessionStorage.getItem("_k")){window.location.href="/";}</script>
 <style>
 *{box-sizing:border-box}
-html,body{height:100%;margin:0;padding:0;background:#0a0a0a;color:#AAA;font-family:monospace;overflow-y:auto;}
+html,body{
+    height:100%;
+    margin:0;
+    padding:0;
+    background:#000 url('https://i.imgur.com/0v1CGpT.png') center 40px no-repeat;
+    background-size:120px 120px;
+    color:#fff;
+    font-family:'Montserrat', 'Segoe UI', 'Arial', 'Helvetica Neue', Helvetica, Arial, sans-serif;
+    overflow-y:auto;
+}
 body{padding:20px 10px 30px;}
-.head{display:flex;justify-content:space-between;align-items:center;border-bottom:1px solid #252525;padding-bottom:10px;margin-bottom:14px;}
-.t1{color:#FCEE0A;font-size:14px;font-weight:bold;}
-.back{color:#555;text-decoration:none;border:1px solid #252525;padding:5px 10px;font-size:11px;}
-.back:focus{background:#FCEE0A;color:#000;}
-.acc-btn{width:100%;background:#151515;color:#CCC;border:1px solid #252525;padding:14px;text-align:left;font-size:14px;font-weight:bold;margin-top:10px;cursor:pointer;}
-.acc-btn:focus{background:#FCEE0A;color:#000;outline:none;}
-.action-btn{width:100%;padding:12px;background:#222;color:#FFF;border:1px solid #444;margin-top:8px;font-weight:bold;cursor:pointer;}
-.action-btn:focus{background:#FCEE0A;color:#000;}
-.panel{display:none;background:#111;border:1px solid #252525;padding:12px;}
-.log-box{width:100%;height:150px;background:#0a0a0a;border:1px solid #252525;color:#0F0;font-size:12px;padding:8px;overflow-y:scroll;white-space:pre-wrap;margin-top:8px;line-height:1.5;}
-.log-box:focus{border:1px solid #FCEE0A;outline:none;}
-.link-btn{display:block;width:100%;padding:12px;background:#1a2a1a;color:#0F0;border:1px solid #2a3a2a;margin-top:8px;text-align:center;text-decoration:none;font-weight:bold;}
-.link-btn:focus{background:#FCEE0A;color:#000;}
-.hint{font-size:10px;color:#444;margin-top:6px;}
+.head{display:flex;justify-content:space-between;align-items:center;border-bottom:1px solid #222;padding-bottom:10px;margin-bottom:18px;}
+.t1{color:#fff;font-size:14px;font-weight:bold;letter-spacing:1px;text-shadow:0 0 2px #000;}
+.back{color:#fff;text-decoration:none;border:1px solid #222;padding:5px 10px;font-size:11px;background:transparent;}
+.back:focus{background:#fff;color:#000;}
+.payload-list{display:flex;flex-direction:column;gap:12px;margin-top:10px;}
+.acc-btn{width:100%;background:#000;color:#fff;border:1px solid #fff;padding:16px;text-align:left;font-size:15px;font-weight:bold;cursor:pointer;transition:background .15s, color .15s;}
+.acc-btn:focus,.acc-btn:hover{background:#fff;color:#000;outline:none;}
+</style>
+<link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;700&display=swap" rel="stylesheet">
+</style>
+<link href="https://fonts.googleapis.com/css2?family=UnifrakturCook:wght@700&family=Cinzel+Decorative:wght@700&display=swap" rel="stylesheet">
 </style>
 </head>
 <body>
@@ -31,60 +37,11 @@ body{padding:20px 10px 30px;}
     <a href="success.html" class="back">&lt; DASHBOARD</a>
 </div>
 
-<button class="acc-btn" onclick="openP('p1')">&gt; WIFI_SCANNER</button>
-<div id="p1" class="panel">
-    <button class="action-btn" onclick="req('/api/scan_wifi','ssid-log')">SCAN AREA</button>
-    <div id="ssid-log" class="log-box" tabindex="0">READY</div>
+<div class="payload-list">
+    <a class="acc-btn" href="wifi_scanner.html">&gt; WIFI SCANNER</a>
+    <a class="acc-btn" href="vuln_check.html">&gt; VULN CHECK (NMAP)</a>
+    <a class="acc-btn" href="evil_twin.html">&gt; EVIL TWIN</a>
+    <a class="acc-btn" href="deauth.html">&gt; DEAUTH</a>
 </div>
-
-<button class="acc-btn" onclick="openP('p2')">&gt; VULN_CHECK (NMAP)</button>
-<div id="p2" class="panel">
-    <div class="hint">Ports: 21 FTP, 23 Telnet, 445 SMB, 3389 RDP, 8080</div>
-    <button class="action-btn" onclick="req('/api/nmap','port-log')">SCAN NETWORK</button>
-    <div id="port-log" class="log-box" tabindex="0">READY</div>
-</div>
-
-<button class="acc-btn" onclick="openP('p3')">&gt; EVIL TWIN</button>
-<div id="p3" class="panel">
-    <div class="hint">Clone SSID, AP at 192.168.4.1 — open http://192.168.4.1:5000 when AP is up.</div>
-    <a href="evil_twin.html" class="link-btn">OPEN EVIL TWIN</a>
-</div>
-
-<button class="acc-btn" onclick="openP('p4')">&gt; DEAUTH</button>
-<div id="p4" class="panel">
-    <div class="hint">Select SSID 1–9, send deauth frames (aireplay-ng).</div>
-    <a href="deauth.html" class="link-btn">OPEN DEAUTH</a>
-</div>
-
-<script>
-function openP(id){
-    var p=document.getElementById(id);
-    var cur=p.style.display;
-    var all=document.getElementsByClassName("panel");
-    for(var i=0;i<all.length;i++) all[i].style.display="none";
-    if(cur!=="block") p.style.display="block";
-}
-function req(endpoint,logId){
-    var log=document.getElementById(logId);
-    var isSlow=endpoint.indexOf("nmap")!==-1;
-    log.innerHTML=isSlow?"SCANNING... (MAY TAKE 30s)":"Loading...";
-    var x=new XMLHttpRequest();
-    x.open("GET",endpoint,true);
-    x.timeout=isSlow?60000:15000;
-    x.onreadystatechange=function(){
-        if(x.readyState!==4)return;
-        if(x.status===200){
-            try{
-                var d=JSON.parse(x.responseText);
-                if(Array.isArray(d)){log.innerHTML="";for(var i=0;i<d.length;i++)log.innerHTML+=d[i]+"\n";}
-                else log.innerHTML=d.log||d.status||JSON.stringify(d);
-                log.focus();
-            }catch(e){log.innerHTML="DATA ERROR";}
-        }else log.innerHTML="ERROR: "+x.status;
-    };
-    x.ontimeout=function(){log.innerHTML="TIMEOUT";};
-    x.send();
-}
-</script>
 </body>
 </html>

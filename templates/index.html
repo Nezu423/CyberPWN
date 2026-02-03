@@ -5,56 +5,211 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
 <title>CyberPWN — GATEKEEPER</title>
 <style>
-*{box-sizing:border-box}
-html,body{height:100%;margin:0;padding:0;background:#0d0d0d;font-family:monospace;overflow:hidden;color:#AAA;}
-#layout-table{width:100%;height:100%;border-collapse:collapse;}
-td.center-cell{vertical-align:middle;text-align:center;padding-bottom:20px;}
-.top-txt{font-size:9px;color:#333;margin-bottom:6px;letter-spacing:3px;font-weight:bold;}
-#d{background:#000;color:#FCEE0A;font-size:24px;font-weight:bold;height:48px;width:220px;border:2px solid #2a2a2a;margin:0 auto 6px auto;line-height:48px;letter-spacing:4px;text-align:center;transition:border-color .2s, transform .1s;}
-#d.denied{animation:shake .4s ease;}
-@keyframes shake{0%,100%{transform:translateX(0)}20%{transform:translateX(-6px)}40%{transform:translateX(6px)}60%{transform:translateX(-4px)}80%{transform:translateX(4px)}}
-#s{color:#555;font-size:11px;min-height:16px;margin-bottom:8px;text-transform:uppercase;font-weight:bold;text-align:center;}
-.keypad{margin:0 auto;width:220px;}
-.keypad td{padding:3px;width:33%;}
-.b{width:100%;height:46px;background:#1a1a1a;color:#AAA;font-size:20px;border:1px solid #2a2a2a;border-radius:0;cursor:pointer;transition:background .15s, color .15s;}
-.b:focus,.b:active{background:#FCEE0A;color:#000;border-color:#FCEE0A;outline:none;}
-.cl{color:#555;}.en{color:#FCEE0A;border-color:#444;}
-.cl:focus{background:#333!important;color:#FFF!important;}
-.en:focus{background:#FCEE0A!important;color:#000!important;}
+* { box-sizing: border-box; }
+html, body {
+  height: 100%;
+  min-width: 240px;
+  min-height: 320px;
+  max-width: 240px;
+  max-height: 320px;
+  width: 240px;
+  height: 320px;
+  margin: 0 auto;
+  padding: 0;
+  background: #000 url('https://i.imgur.com/0v1CGpT.png') center 40px no-repeat;
+  background-size: 120px 120px;
+  font-family: 'Montserrat', 'Segoe UI', 'Arial', 'Helvetica Neue', Helvetica, Arial, sans-serif;
+  overflow: hidden;
+  color: #fff;
+  box-shadow: 0 0 24px #000c;
+}
+
+body::before {
+  content: "";
+  position: fixed;
+  top: 0; left: 0; right: 0; bottom: 0;
+  background: none;
+  pointer-events: none;
+  z-index: 0;
+}
+
+/* Layout */
+/* Layout for 240x320 */
+#layout-table { width: 100%; height: 100%; border-collapse: collapse; table-layout: fixed; }
+td.center-cell { vertical-align: middle; text-align: center; padding-bottom: 4px; }
+
+/* Top text */
+.top-txt {
+  font-size: 13px;
+  color: #fff;
+  margin-bottom: 8px;
+  letter-spacing: 2px;
+  font-weight: bold;
+  text-transform: uppercase;
+  font-family: 'UnifrakturCook', 'Old English Text MT', 'Cinzel Decorative', serif;
+  text-shadow: 0 0 2px #000, 0 0 1px #fff;
+}
+
+/* Display */
+#d {
+  background: #111;
+  color: #fff;
+  font-size: 18px;
+  font-weight: bold;
+  height: 32px;
+  width: 180px;
+  border: 2px solid #fff;
+  margin: 0 auto 8px auto;
+  line-height: 32px;
+  letter-spacing: 4px;
+  text-align: center;
+  transition: border-color .2s, transform .1s, color .2s, background .2s;
+  border-radius: 6px;
+  box-shadow: 0 0 8px #000a;
+  font-family: 'UnifrakturCook', 'Old English Text MT', 'Cinzel Decorative', serif;
+}
+#d.denied { animation: shake .4s ease; border-color: #fff; color: #fff; }
+
+@keyframes shake {
+  0%,100% { transform: translateX(0); }
+  20% { transform: translateX(-4px); }
+  40% { transform: translateX(4px); }
+  60% { transform: translateX(-2px); }
+  80% { transform: translateX(2px); }
+}
+
+/* Status text */
+#s {
+  color: #555;
+  font-size: 11px;
+  min-height: 16px;
+  margin-bottom: 8px;
+  text-transform: uppercase;
+  font-weight: bold;
+  text-align: center;
+}
+
+/* Keypad */
+.keypad { margin: 0 auto; width: 180px; }
+.keypad td { padding: 2px; width: 33%; }
+
+/* Button base */
+.b {
+  width: 100%;
+  height: 32px;
+  background: #000;
+  color: #fff;
+  font-size: 18px;
+  border: 1.5px solid #fff;
+  border-radius: 0;
+  cursor: pointer;
+  transition: background .15s, color .15s, box-shadow .15s;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  font-family: 'UnifrakturCook', 'Old English Text MT', 'Cinzel Decorative', serif;
+  font-weight: bold;
+  position: relative;
+  box-shadow: 0 0 4px #000a;
+  letter-spacing: 1px;
+  text-shadow: 0 0 2px #000;
+}
+.b:focus, .b:active {
+  outline: none;
+  background: #222;
+  color: #fff;
+  box-shadow: 0 0 8px #000a;
+}
+
+/* Gothic digit style: use cross symbol ✝ for digits */
+.b.gothic-digit {
+  font-size: 22px;
+  color: #fff;
+  text-shadow: 0 0 2px #000;
+  font-family: 'Montserrat', 'Segoe UI', 'Arial', 'Helvetica Neue', Helvetica, Arial, sans-serif;
+}
+
+.b.cl, .b.en {
+  font-size: 13px;
+  color: #fff;
+  font-family: 'Cinzel Decorative', serif;
+  text-shadow: 0 0 2px #000;
+}
 </style>
+<!-- Montserrat font import for readability -->
+<link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;700&display=swap" rel="stylesheet">
+
+
 </head>
 <body onload="_L()">
 <table id="layout-table"><tr><td class="center-cell">
-<div class="top-txt">SECURE_ACCESS // CYBERPWN</div><div id="d"></div><div id="s">ENTER PIN</div>
+<div class="top-txt">✝ SECURE_ACCESS // CYBERPWN ✝</div>
+<div id="d"></div>
+<div id="s">ENTER PIN</div>
 <table class="keypad" border="0" cellpadding="0" cellspacing="0">
-<tr><td><button class="b" type="button" onclick="_a('1')">1</button></td><td><button class="b" type="button" onclick="_a('2')">2</button></td><td><button class="b" type="button" onclick="_a('3')">3</button></td></tr>
-<tr><td><button class="b" type="button" onclick="_a('4')">4</button></td><td><button class="b" type="button" onclick="_a('5')">5</button></td><td><button class="b" type="button" onclick="_a('6')">6</button></td></tr>
-<tr><td><button class="b" type="button" onclick="_a('7')">7</button></td><td><button class="b" type="button" onclick="_a('8')">8</button></td><td><button class="b" type="button" onclick="_a('9')">9</button></td></tr>
-<tr><td><button class="b cl" type="button" onclick="_c()">X</button></td><td><button class="b" type="button" onclick="_a('0')">0</button></td><td><button class="b en" type="button" onclick="_v()">OK</button></td></tr>
-</table></td></tr></table>
+<tr>
+  <td><button class="b gothic-digit" type="button" onclick="_a('1')" aria-label="1">1</button></td>
+  <td><button class="b gothic-digit" type="button" onclick="_a('2')" aria-label="2">2</button></td>
+  <td><button class="b gothic-digit" type="button" onclick="_a('3')" aria-label="3">3</button></td>
+</tr>
+<tr>
+  <td><button class="b gothic-digit" type="button" onclick="_a('4')" aria-label="4">4</button></td>
+  <td><button class="b gothic-digit" type="button" onclick="_a('5')" aria-label="5">5</button></td>
+  <td><button class="b gothic-digit" type="button" onclick="_a('6')" aria-label="6">6</button></td>
+</tr>
+<tr>
+  <td><button class="b gothic-digit" type="button" onclick="_a('7')" aria-label="7">7</button></td>
+  <td><button class="b gothic-digit" type="button" onclick="_a('8')" aria-label="8">8</button></td>
+  <td><button class="b gothic-digit" type="button" onclick="_a('9')" aria-label="9">9</button></td>
+</tr>
+<tr>
+  <td><button class="b cl" type="button" onclick="_c()">✗</button></td>
+  <td><button class="b gothic-digit" type="button" onclick="_a('0')" aria-label="0">0</button></td>
+  <td><button class="b en" type="button" onclick="_v()">OK</button></td>
+</tr>
+</table>
+</td></tr></table>
 <script>
-var _i="",_t=1425614349;
+var _i="";
 function _L(){localStorage.removeItem("_l");_u();_m("ENTER PIN","#555");}
 function _a(n){if(_i.length<8){_i+=n;_u();}}
 function _c(){_i="";_u();_m("ENTER PIN","#555");var d=document.getElementById("d");d.classList.remove("denied");}
 function _u(){var h="";for(var j=0;j<_i.length;j++)h+="*";document.getElementById("d").innerHTML=h;}
 function _m(t,c){var o=document.getElementById("s");o.innerHTML=t;o.style.color=c;}
-function _z(v){var r=0;for(var q=0;q<v.length;q++){r=((r<<5)-r)+v.charCodeAt(q);r=r&r;}return Math.abs(r);}
 function _v(){
   if(_i.length===0)return;
   var d=document.getElementById("d");
-  setTimeout(function(){
-    if(_z(_i)===_t){
-      d.classList.remove("denied");
-      sessionStorage.setItem("_k","1");
-      _m("ACCESS GRANTED","#FCEE0A");
-      d.style.borderColor="#FCEE0A";
-      setTimeout(function(){window.location.href="success.html";},500);
+  d.classList.remove("denied");
+  _m("VERIFYING...","#FCEE0A");
+  var x = new XMLHttpRequest();
+  x.open("POST", "/api/verify_pin", true);
+  x.setRequestHeader("Content-Type", "application/json");
+  x.onreadystatechange = function() {
+    if(x.readyState!==4)return;
+    if(x.status===200){
+      try{
+        var resp = JSON.parse(x.responseText);
+        if(resp && resp.ok){
+          sessionStorage.setItem("_k","1");
+          _m("ACCESS GRANTED","#fff");
+          d.style.borderColor="#fff";
+          setTimeout(function(){window.location.href="success.html";},500);
+        }else{
+          d.classList.add("denied");
+          _m("DENIED","#fff");_i="";_u();
+          setTimeout(function(){d.classList.remove("denied");},500);
+        }
+      }catch(e){
+        d.classList.add("denied");
+        _m("ERROR","#fff");_i="";_u();
+        setTimeout(function(){d.classList.remove("denied");},500);
+      }
     }else{
       d.classList.add("denied");
-      _m("DENIED","#e44");_i="";_u();
+      _m("SERVER ERROR","#fff");_i="";_u();
       setTimeout(function(){d.classList.remove("denied");},500);
     }
-  },200);
+  };
+  x.send(JSON.stringify({pin:_i}));
 }
 </script></body></html>

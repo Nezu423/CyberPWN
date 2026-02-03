@@ -3,6 +3,16 @@ import os
 import re
 import sys
 from flask import Flask, jsonify, request, render_template
+# Argon2 for PIN verification
+try:
+    from argon2 import PasswordHasher
+    ph = PasswordHasher()
+    # Store the Argon2 hash of your PIN here (replace with your actual hash)
+    
+    PIN_HASH = "$argon2id$v=19$m=65536,t=3,p=4$w4WzXT4h/M1P8Wh2944auQ$n5j8/DJw8L0u5oeCoPwgNO9WJZzZ4bIO6RN/KlqVjfw"
+except ImportError:
+    ph = None
+    PIN_HASH = None
 
 # --- SETUP ---
 base_dir = os.path.abspath(os.path.dirname(__file__))
@@ -40,7 +50,27 @@ def _run_capture(cmd, timeout=10):
     except Exception as e:
         return {"cmd": _ensure_str(cmd), "stdout": "", "stderr": _ensure_str(str(e)), "returncode": -1, "error": _ensure_str(str(e))}
 
+###########################
 # --- ROUTES ---
+###########################
+
+# --- API: Verify PIN () ---
+@app.route('/api/verify_pin', methods=['POST'])
+def api_verify_pin():
+    if not ph or not PIN_HASH:
+        return jsonify({"ok": False, "error": "Argon2 not available or PIN hash not set"})
+    try:
+        data = request.get_json(force=True, silent=True) or {}
+        pin = (data.get("pin") or "").strip()
+        if not pin:
+            return jsonify({"ok": False, "error": "PIN required"})
+        try:
+            ph.verify(PIN_HASH, pin)
+            return jsonify({"ok": True})
+        except Exception:
+            return jsonify({"ok": False})
+    except Exception as e:
+        return jsonify({"ok": False, "error": str(e)})
 @app.route('/')
 def home():
     return render_template('index.html')  # Pin / main gatekeeper page

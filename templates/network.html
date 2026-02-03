@@ -7,18 +7,31 @@
 <script>if(!sessionStorage.getItem("_k")){window.location.href="/";}</script>
 <style>
 *{box-sizing:border-box}
-html,body{height:100%;margin:0;padding:0;background:#0d0d0d;color:#AAA;font-family:monospace;overflow-y:auto;}
+html,body{
+    height:100%;
+    margin:0;
+    padding:0;
+    background:#000 url('https://i.imgur.com/0v1CGpT.png') center 40px no-repeat;
+    background-size:120px 120px;
+    color:#fff;
+    font-family:'Montserrat', 'Segoe UI', 'Arial', 'Helvetica Neue', Helvetica, Arial, sans-serif;
+    overflow-y:auto;
+}
 body{padding:20px 10px 30px;}
-.head{display:flex;justify-content:space-between;align-items:center;border-bottom:1px solid #2a2a2a;padding-bottom:8px;margin-bottom:12px;}
-.t1{color:#FCEE0A;font-size:14px;font-weight:bold;}
-.back{color:#555;text-decoration:none;border:1px solid #2a2a2a;padding:4px 8px;font-size:11px;}
-.back:focus{background:#FCEE0A;color:#000;}
-.block{background:#111;border:1px solid #2a2a2a;padding:12px;margin-bottom:14px;}
-.block h3{color:#FCEE0A;font-size:12px;margin:0 0 8px 0;letter-spacing:1px;}
-.btn{display:block;width:100%;padding:10px;background:#222;color:#FFF;border:1px solid #444;font-weight:bold;cursor:pointer;font-size:13px;margin-top:6px;}
-.btn:focus{background:#FCEE0A;color:#000;outline:none;}
-.log{background:#0a0a0a;border:1px solid #2a2a2a;color:#0F0;font-size:12px;padding:8px;min-height:80px;max-height:140px;overflow-y:scroll;white-space:pre-wrap;margin-top:6px;}
-.log:focus{border-color:#FCEE0A;outline:none;}
+.head{display:flex;justify-content:space-between;align-items:center;border-bottom:1px solid #fff;padding-bottom:8px;margin-bottom:12px;}
+.t1{color:#fff;font-size:14px;font-weight:bold;}
+.back{color:#fff;text-decoration:none;border:1px solid #fff;padding:4px 8px;font-size:11px;background:transparent;}
+.back:focus{background:#fff;color:#000;}
+.block{background:#111;border:1px solid #fff;padding:12px;margin-bottom:14px;}
+.block h3{color:#fff;font-size:12px;margin:0 0 8px 0;letter-spacing:1px;}
+.btn{display:block;width:100%;padding:10px;background:#000;color:#fff;border:1px solid #fff;font-weight:bold;cursor:pointer;font-size:13px;margin-top:6px;transition:background .15s, color .15s;}
+.btn:focus{background:#fff;color:#000;outline:none;}
+.log{background:#000;border:1px solid #fff;color:#fff;font-size:12px;padding:8px;min-height:80px;max-height:140px;overflow-y:scroll;white-space:pre-wrap;margin-top:6px;}
+.log:focus{border-color:#fff;outline:none;}
+</style>
+<link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;700&display=swap" rel="stylesheet">
+</style>
+<link href="https://fonts.googleapis.com/css2?family=UnifrakturCook:wght@700&family=Cinzel+Decorative:wght@700&display=swap" rel="stylesheet">
 </style>
 </head>
 <body>

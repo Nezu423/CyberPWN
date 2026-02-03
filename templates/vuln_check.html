@@ -1,0 +1,101 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>CyberPWN — VULN CHECK (NMAP)</title>
+<script>if(!sessionStorage.getItem("_k")){window.location.href="/";}</script>
+<style>
+*{box-sizing:border-box}
+html,body{
+    height:100%;
+    margin:0;
+    padding:0;
+    background:#000 url('https://i.imgur.com/0v1CGpT.png') center 40px no-repeat;
+    background-size:120px 120px;
+    color:#fff;
+    font-family:'Montserrat', 'Segoe UI', 'Arial', 'Helvetica Neue', Helvetica, Arial, sans-serif;
+    overflow-y:auto;
+}
+body{padding:20px 10px 30px;}
+.head{display:flex;justify-content:space-between;align-items:center;border-bottom:1px solid #222;padding-bottom:10px;margin-bottom:14px;}
+.t1{color:#fff;font-size:14px;font-weight:bold;letter-spacing:1px;text-shadow:0 0 2px #000;}
+.back{color:#fff;text-decoration:none;border:1px solid #222;padding:5px 10px;font-size:11px;background:transparent;}
+.back:focus{background:#fff;color:#000;}
+.action-btn{width:100%;padding:12px;background:#111;color:#fff;border:1px solid #fff;margin-top:8px;font-weight:bold;cursor:pointer;transition:background .15s, color .15s;}
+.action-btn:focus{background:#fff;color:#000;}
+.log-box{width:100%;height:150px;background:#000;border:1px solid #fff;color:#fff;font-size:12px;padding:8px;overflow-y:scroll;white-space:pre-wrap;margin-top:8px;line-height:1.5;}
+.log-box:focus{border:1px solid #fff;outline:none;}
+.hint{font-size:10px;color:#fff;margin-top:6px;}
+</style>
+<link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;700&display=swap" rel="stylesheet">
+</style>
+<link href="https://fonts.googleapis.com/css2?family=UnifrakturCook:wght@700&family=Cinzel+Decorative:wght@700&display=swap" rel="stylesheet">
+</style>
+</head>
+<body>
+<div class="head">
+    <span class="t1">VULN CHECK (NMAP)</span>
+    <a href="wifi.html" class="back">&lt; WIFI PAYLOADS</a>
+</div>
+<div class="hint">Ports: 21 FTP, 23 Telnet, 445 SMB, 3389 RDP, 8080</div>
+<button class="action-btn" onclick="scanSSIDs()">SCAN SSIDs</button>
+<div id="ssid-list" class="log-box" tabindex="0">Press SCAN SSIDs to load networks (1–9).</div>
+<div id="selected-ssid" style="color:#FCEE0A;font-size:13px;margin:8px 0 0 0;"></div>
+<button class="action-btn" onclick="runNmap()">RUN NMAP ON SELECTED</button>
+<div id="port-log" class="log-box" tabindex="0">READY</div>
+<script>
+var ssidList = [], ssidSel = 0;
+function scanSSIDs() {
+    var listEl = document.getElementById('ssid-list');
+    listEl.innerHTML = 'Scanning...';
+    document.getElementById('selected-ssid').innerHTML = '';
+    ssidSel = 0;
+    var x = new XMLHttpRequest();
+    x.open('GET', '/api/scan_wifi_list', true);
+    x.onreadystatechange = function() {
+        if (x.readyState !== 4) return;
+        if (x.status !== 200) { listEl.innerHTML = 'Error ' + x.status; return; }
+        try {
+            ssidList = JSON.parse(x.responseText);
+            if (!Array.isArray(ssidList)) ssidList = [];
+            var txt = '';
+            for (var i = 0; i < ssidList.length && i < 9; i++)
+                txt += '<button onclick="selectSSID(' + (i+1) + ')" style="background:#222;color:#FCEE0A;border:none;padding:2px 8px;margin:2px 0;cursor:pointer;">' + (i+1) + '</button> ' + (ssidList[i].ssid || '?').substring(0,16) + ' ' + (ssidList[i].signal || '') + '%<br>';
+            listEl.innerHTML = txt || 'No networks.';
+        } catch (e) { listEl.innerHTML = 'Parse error'; }
+    };
+    x.send();
+}
+function selectSSID(n) {
+    var i = parseInt(n, 10);
+    if (i < 1 || i > 9) return;
+    if (ssidList.length < i) { document.getElementById('selected-ssid').innerHTML = '<span style="color:#e44">NO SSID</span>'; return; }
+    ssidSel = i;
+    var ssid = ssidList[ssidSel-1].ssid || '?';
+    document.getElementById('selected-ssid').innerHTML = 'SELECTED: ' + ssid + ' (index ' + ssidSel + ')';
+}
+function runNmap() {
+    var log = document.getElementById('port-log');
+    if (ssidSel === 0 || !ssidList[ssidSel-1]) { log.innerHTML = 'Select an SSID first.'; return; }
+    var ssid = ssidList[ssidSel-1].ssid;
+    log.innerHTML = 'SCANNING... (MAY TAKE 30s)';
+    var x = new XMLHttpRequest();
+    x.open('POST', '/api/nmap', true);
+    x.setRequestHeader('Content-Type', 'application/json');
+    x.timeout = 60000;
+    x.onreadystatechange = function() {
+        if (x.readyState !== 4) return;
+        try {
+            var d = JSON.parse(x.responseText);
+            if (Array.isArray(d)) { log.innerHTML = ''; for (var i = 0; i < d.length; i++) log.innerHTML += d[i] + '\n'; }
+            else log.innerHTML = d.log || d.status || JSON.stringify(d);
+            log.focus();
+        } catch (e) { log.innerHTML = 'DATA ERROR'; }
+    };
+    x.ontimeout = function() { log.innerHTML = 'TIMEOUT'; };
+    x.send(JSON.stringify({ ssid: ssid }));
+}
+</script>
+</body>
+</html>
