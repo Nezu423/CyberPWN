@@ -1,0 +1,82 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=240, height=320, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>Port Audit</title>
+<style>
+:root{
+  --bg:#000;
+  --fg:#eaeaea;
+  --c:#00ffe7;
+  --a:#ff00c8;
+  --bad:#ff3c00;
+  --warn:#ffd600;
+  --ok:#00ff5a;
+  --dim:#202020;
+}
+*{box-sizing:border-box}
+html,body{width:240px;height:320px;margin:0;padding:0;background:var(--bg);color:var(--fg);font-family:Arial,Helvetica,sans-serif;overflow:hidden;}
+body{padding:8px 6px 10px 6px;}
+.h{display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;}
+.t{color:var(--c);font-size:12px;font-weight:bold;letter-spacing:1px;}
+.back{color:var(--c);text-decoration:none;border:1px solid var(--c);padding:3px 6px;font-size:10px;background:transparent;}
+.back:focus{background:var(--c);color:#000;}
+.lbl{font-size:10px;color:var(--fg);margin:6px 0 2px 0;}
+.in{width:100%;padding:6px 6px;background:#000;color:var(--fg);border:1px solid var(--c);font-size:11px;outline:none;}
+.in:focus{border-color:var(--a);}
+.btn{width:100%;margin-top:6px;padding:8px 6px;background:#000;color:var(--c);border:1px solid var(--c);font-size:12px;font-weight:bold;cursor:pointer;}
+.btn:focus,.btn:hover{background:var(--c);color:#000;}
+.log{margin-top:8px;border:1px solid var(--dim);background:#000;color:var(--fg);font-size:10px;padding:6px;height:190px;overflow-y:auto;white-space:pre-wrap;}
+.g{color:var(--ok);}
+.r{color:var(--bad);}
+.k{color:var(--warn);}
+</style>
+</head>
+<body>
+<div class="h">
+  <div class="t">PORT AUDIT</div>
+  <a class="back" href="success.html">&lt; DASH</a>
+</div>
+<div class="lbl">Host / IP (LAN only):</div>
+<input id="h" class="in" type="text" value="192.168.1.1" />
+<button class="btn" type="button" onclick="scan()">SCAN PORTS</button>
+<div id="log" class="log">Ready.</div>
+<script>
+function _e(s){return (s===null||s===undefined)?'':String(s);}
+function setLog(t){document.getElementById('log').innerHTML=t;}
+function scan(){
+  var host=document.getElementById('h').value;
+  if(!host){setLog('<span class="r">Enter a host</span>');return;}
+  setLog('Scanning...');
+  var x=new XMLHttpRequest();
+  x.open('POST','/api/port_audit',true);
+  x.setRequestHeader('Content-Type','application/json');
+  x.timeout=20000;
+  x.onreadystatechange=function(){
+    if(x.readyState!==4)return;
+    if(x.status!==200){setLog('<span class="r">HTTP '+x.status+'</span>');return;}
+    try{
+      var d=JSON.parse(x.responseText);
+      if(!d||!d.ok){setLog('<span class="r">'+_e(d&&d.error?d.error:'Error')+'</span>');return;}
+      var out='HOST: <span class="k">'+_e(d.host)+'</span>\n';
+      out+='RESOLVED: '+_e((d.resolved||[]).join(', '))+'\n\n';
+      var rs=d.results||[];
+      for(var i=0;i<rs.length;i++){
+        var it=rs[i]||{};
+        var st=_e(it.state);
+        var line=_e(it.port)+' '+_e(it.service)+' -> '+st;
+        if(st==='open') line='<span class="g">'+line+'</span>';
+        else if(st==='error'||st==='timeout') line='<span class="r">'+line+'</span>';
+        out+=line+'\n';
+      }
+      setLog(out);
+    }catch(e){setLog('<span class="r">Parse error</span>');}
+  };
+  x.ontimeout=function(){setLog('<span class="r">TIMEOUT</span>');};
+  x.onerror=function(){setLog('<span class="r">ERROR</span>');};
+  x.send(JSON.stringify({host:host}));
+}
+</script>
+</body>
+</html>

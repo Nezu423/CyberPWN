@@ -99,20 +99,7 @@
   .menu-group{margin-bottom:8px;}
 </style>
 <script>
-function showTab(tab){
-  var btns = document.querySelectorAll('.tab-btn');
-  var secs = document.querySelectorAll('.tab-content');
-  var i;
-  for (i = 0; i < btns.length; i++) {
-    btns[i].classList.remove('active');
-  }
-  for (i = 0; i < secs.length; i++) {
-    secs[i].style.display = 'none';
-  }
-  document.getElementById(tab+'-tab').style.display='block';
-  document.getElementById(tab+'-btn').classList.add('active');
-}
-window.onload=function(){showTab('listener');}
+window.onload=function(){};
 </script>
 </head>
 <body>
@@ -123,24 +110,22 @@ window.onload=function(){showTab('listener');}
     <li><a href="2_beacon_sniff.html" style="color:#0cf;">Beacon Sniff</a></li>
     <li><a href="2_channel_analyzer.html" style="color:#0cf;">Channel Analyzer</a></li>
     <li><a href="2_interfaces.html" style="color:#0cf;">Interfaces</a></li>
+    <li><a href="url_sniffer.html" style="color:#0cf;">URL Sniffer</a></li>
+    <li><a href="port_scan.html" style="color:#0cf;">Port Audit</a></li>
   </ul>
 </div>
 </noscript>
 <div class="brand">CYBERPWN DASHBOARD</div>
-<div class="tabs">
-  <button class="tab-btn" id="listener-btn" onclick="showTab('listener')">Listener</button>
-</div>
 <div class="sections">
-  <!-- Listener Tab -->
-  <div class="tab-content" id="listener-tab" style="display:block;">
-    <div class="section-title">Sniffers</div>
-    <div class="menu-group">
-      <ul class="menu-list">
-        <li><a href="2_beacon_sniff.html" class="menu-btn" data-label="Beacon Sniff">Beacon Sniff</a></li>
-        <li><a href="2_channel_analyzer.html" class="menu-btn" data-label="Channel Analyzer">Channel Analyzer</a></li>
-        <li><a href="2_interfaces.html" class="menu-btn" data-label="Interfaces">Interfaces</a></li>
-      </ul>
-    </div>
+  <div class="section-title">Tools</div>
+  <div class="menu-group">
+    <ul class="menu-list">
+      <li><a href="2_beacon_sniff.html" class="menu-btn" data-label="Beacon Sniff">Beacon Sniff</a></li>
+      <li><a href="2_channel_analyzer.html" class="menu-btn" data-label="Channel Analyzer">Channel Analyzer</a></li>
+      <li><a href="2_interfaces.html" class="menu-btn" data-label="Interfaces">Interfaces</a></li>
+      <li><a href="url_sniffer.html" class="menu-btn" data-label="URL Sniffer">URL Sniffer</a></li>
+      <li><a href="port_scan.html" class="menu-btn" data-label="Port Audit">Port Audit</a></li>
+    </ul>
   </div>
 </div>
 </body>

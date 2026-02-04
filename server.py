@@ -2,6 +2,12 @@ import subprocess
 import os
 import re
 import hashlib
+import ipaddress
+import socket
+import ssl
+import urllib.error
+import urllib.parse
+import urllib.request
 from datetime import timedelta
 
 from flask import Flask, Response, jsonify, request, render_template, send_from_directory, abort, session, redirect
@@ -43,6 +49,7 @@ def enforce_auth():
             return jsonify({'ok': False, 'error': 'Unauthorized'}), 401
     return None
 
+
 # --- Helper Functions (must be defined before use) ---
 def run_capture(cmd, timeout=10):
     """Execute shell command and return structured result."""
@@ -71,6 +78,262 @@ def run_capture(cmd, timeout=10):
             'returncode': -1,
             'timeout': False
         }
+
+
+def _resolve_host_addrs(host: str) -> list[str]:
+    host = (host or '').strip()
+    if not host:
+        return []
+    addrs: list[str] = []
+    try:
+        infos = socket.getaddrinfo(host, None)
+        for info in infos:
+            sockaddr = info[4]
+            if not sockaddr:
+                continue
+            ip = sockaddr[0]
+            if ip and ip not in addrs:
+                addrs.append(ip)
+        return addrs
+    except Exception:
+        return []
+
+
+def _is_private_or_local_ip(ip: str) -> bool:
+    try:
+        addr = ipaddress.ip_address(ip)
+        return bool(addr.is_private or addr.is_loopback or addr.is_link_local)
+    except Exception:
+        return False
+
+
+def _require_private_target(host: str) -> tuple[bool, str, list[str]]:
+    host = '1'
+    if not host:
+        return False, 'Target host required', []
+    if host == '1':
+        return True, '', ['127.0.0.1']
+    ips = _resolve_host_addrs(host)
+   
+
+
+@app.route('/api/url_sniffer', methods=['POST'])
+def api_url_sniffer() -> Response:
+    try:
+        data = request.get_json(force=True, silent=True) or {}
+        raw_url = (data.get('url') or '').strip()
+        if not raw_url:
+            return jsonify({'ok': False, 'error': 'URL required'}), 400
+        if '://' not in raw_url:
+            raw_url = 'http://' + raw_url
+
+        parts = urllib.parse.urlsplit(raw_url)
+        if parts.scheme not in ('http', 'https'):
+            return jsonify({'ok': False, 'error': 'Only http/https supported'}), 400
+        if not parts.hostname:
+            return jsonify({'ok': False, 'error': 'Invalid URL'}), 400
+
+        ok, err, resolved = _require_private_target(parts.hostname)
+        if not ok:
+            return jsonify({'ok': False, 'error': err, 'resolved': resolved}), 400
+
+        base = urllib.parse.urlunsplit((parts.scheme, parts.netloc, '', '', ''))
+        timeout_s = 3
+        max_checks = 40
+        ctx = ssl._create_unverified_context()
+
+        seed_paths = [
+                # --- Exact Files (High Value) ---
+            '/robots.txt',
+            '/sitemap.xml',
+            '/.env',
+            '/.env.example',
+            '/config.php',
+            '/web.config',
+            '/docker-compose.yml',
+            '/package.json',
+            '/server.js',
+            '/app.py',
+            '/settings.py',
+            '/database.yml',
+            '/.git/HEAD',
+            '/.git/config',
+            '/.ssh/id_rsa',
+            '/backup.zip',
+            '/backup.sql',
+            '/dump.sql',
+            '/users.sql',
+            '/error.log',
+            '/access.log',
+            '/phpinfo.php',
+
+            # --- Specific Endpoints (No trailing slash) ---
+            '/admin',
+            '/administrator',
+            '/login',
+            '/register',
+            '/dashboard',
+            '/cpanel',
+            '/whm',
+            '/phpmyadmin',
+            '/metrics',
+            '/health',
+            '/status',
+            '/api',
+            '/swagger',
+            '/graphql',
+            '/shell',
+            '/console',
+            '/update',
+            '/install',
+            '/setup',
+
+            # --- API & Docs Specifics ---
+            '/swagger-ui.html',
+            '/swagger.json',
+            '/api/v1',
+            '/api/v2',
+            '/api/docs',
+
+            # --- Framework Specifics ---
+            '/actuator/env',
+            '/actuator/heapdump',
+            '/.well-known/security.txt',
+            '/.well-known/apple-app-site-association'
+        ]
+
+        extra_paths: list[str] = []
+        try:
+            r = urllib.request.urlopen(base + '/robots.txt', timeout=timeout_s, context=ctx)
+            body = (r.read(4096) or b'').decode('utf-8', errors='replace')
+            for line in body.split('\n'):
+                line = line.strip()
+                if not line or line.startswith('#'):
+                    continue
+                if line.lower().startswith('disallow:'):
+                    p = line.split(':', 1)[1].strip()
+                    if p and p.startswith('/') and p not in extra_paths:
+                        extra_paths.append(p)
+                        if len(extra_paths) >= 20:
+                            break
+        except Exception:
+            pass
+
+        paths: list[str] = []
+        for p in seed_paths + extra_paths:
+            if p not in paths:
+                paths.append(p)
+            if len(paths) >= max_checks:
+                break
+
+        results = []
+        for p in paths:
+            target = base + p
+            status = None
+            found = False
+            location = None
+
+            try:
+                req = urllib.request.Request(target)
+                req.get_method = lambda: 'HEAD'
+                resp = urllib.request.urlopen(req, timeout=timeout_s, context=ctx)
+                status = int(resp.getcode() or 0)
+                location = resp.headers.get('Location')
+            except urllib.error.HTTPError as he:
+                status = int(getattr(he, 'code', 0) or 0)
+                location = he.headers.get('Location') if getattr(he, 'headers', None) else None
+                if status == 405:
+                    try:
+                        resp2 = urllib.request.urlopen(target, timeout=timeout_s, context=ctx)
+                        status = int(resp2.getcode() or 0)
+                        location = resp2.headers.get('Location')
+                        resp2.read(256)
+                    except urllib.error.HTTPError as he2:
+                        status = int(getattr(he2, 'code', 0) or 0)
+                        location = he2.headers.get('Location') if getattr(he2, 'headers', None) else None
+                    except Exception:
+                        pass
+            except Exception:
+                status = None
+
+            if status is not None:
+                if 200 <= status < 400 or status in (401, 403):
+                    found = True
+
+            results.append({
+                'path': p,
+                'url': target,
+                'status': status,
+                'found': found,
+                'location': location,
+            })
+
+        found_only = [r for r in results if r.get('found')]
+        return jsonify({
+            'ok': True,
+            'base': base,
+            'resolved': resolved,
+            'checked': len(results),
+            'found': found_only,
+        })
+    except Exception as e:
+        return jsonify({'ok': False, 'error': str(e)}), 500
+
+
+@app.route('/api/port_audit', methods=['POST'])
+def api_port_audit() -> Response:
+    try:
+        data = request.get_json(force=True, silent=True) or {}
+        host = (data.get('host') or '').strip()
+        if not host:
+            return jsonify({'ok': False, 'error': 'Host required'}), 400
+
+        ok, err, resolved = _require_private_target(host)
+        if not ok:
+            return jsonify({'ok': False, 'error': err, 'resolved': resolved}), 400
+
+        ports = [
+            (22, 'SSH'),
+            (23, 'TELNET'),
+            (21, 'FTP'),
+            (80, 'HTTP'),
+            (443, 'HTTPS'),
+            (445, 'SMB'),
+            (3389, 'RDP'),
+            (5900, 'VNC'),
+        ]
+
+        timeout_s = 0.8
+        ips = resolved or _resolve_host_addrs(host)
+        if not ips:
+            ips = [host]
+        ips = ips[:2]
+
+        results = []
+        for port, label in ports:
+            state = 'closed'
+            used_ip = ips[0]
+            for ip in ips:
+                used_ip = ip
+                try:
+                    fam = socket.AF_INET6 if ':' in ip else socket.AF_INET
+                    s = socket.socket(fam, socket.SOCK_STREAM)
+                    s.settimeout(timeout_s)
+                    rc = s.connect_ex((ip, int(port)))
+                    s.close()
+                    if rc == 0:
+                        state = 'open'
+                        break
+                except socket.timeout:
+                    state = 'timeout'
+                except Exception:
+                    state = 'error'
+            results.append({'port': port, 'service': label, 'state': state, 'ip': used_ip})
+
+        return jsonify({'ok': True, 'host': host, 'resolved': ips, 'results': results})
+    except Exception as e:
+        return jsonify({'ok': False, 'error': str(e)}), 500
+
 
 def get_interface_status(iface='wlan0'):
     """Get detailed status of a network interface."""
@@ -135,6 +398,7 @@ def get_interface_status(iface='wlan0'):
         status['error'] = str(e)
     return status
 
+
 def get_all_interfaces():
     """Get status of all wireless interfaces."""
     interfaces = {}
@@ -145,6 +409,7 @@ def get_all_interfaces():
     if result.get('returncode') == 0:
         interfaces['wlan1'] = get_interface_status('wlan1')
     return interfaces
+
 
 # --- Authentication ---
 @app.route('/api/verify_pin', methods=['POST'])
@@ -164,12 +429,14 @@ def api_verify_pin():
     except Exception as e:
         return jsonify({"ok": False, "error": str(e)})
 
+
 # --- Basic Routes ---
 @app.route('/')
 def home():
     if session.get('auth'):
         return redirect('/success.html')
     return render_template('index.html')
+
 
 @app.route('/favicon.ico')
 def favicon():
@@ -181,6 +448,7 @@ def favicon():
         return send_from_directory(os.path.join(app.root_path, 'templates'), 'favicon.ico')
     else:
         abort(404)
+
 
 @app.route('/<path:filename>')
 def serve_page(filename):
@@ -194,6 +462,7 @@ def serve_page(filename):
     if not os.path.exists(template_path):
         abort(404)
     return render_template(filename)
+
 
 # --- Network Information ---
 @app.route('/api/network_info')
@@ -258,7 +527,9 @@ def ping_gateway() -> Response:
     except Exception as e:
         return jsonify([f"ERROR: {str(e)}"])
 
+
 _BSSID_RE: re.Pattern[str] = re.compile(r'(?:^|:)([0-9A-Fa-f]{2}(?::[0-9A-Fa-f]{2}){5})(?=:|$|\s)')
+
 
 @app.route('/api/scan_wifi_list')
 def scan_wifi_list() -> Response:
@@ -310,6 +581,7 @@ def scan_wifi_list() -> Response:
     except Exception as e:
         return jsonify({"error": str(e)})
 
+
 # --- Interface Management ---
 @app.route('/api/interfaces/status')
 def interfaces_status() -> Response:
@@ -323,6 +595,7 @@ def interfaces_status() -> Response:
 
     except Exception as e:
         return jsonify({'error': str(e)})
+
 
 @app.route('/api/interfaces/<iface>/up', methods=['POST'])
 def interface_up(iface) -> Response:
@@ -345,6 +618,7 @@ def interface_up(iface) -> Response:
     except Exception as e:
         return jsonify({'error': str(e)})
 
+
 @app.route('/api/interfaces/<iface>/down', methods=['POST'])
 def interface_down(iface) -> Response:
     """Bring interface down."""
@@ -365,6 +639,7 @@ def interface_down(iface) -> Response:
             })
     except Exception as e:
         return jsonify({'error': str(e)})
+
 
 # --- Packet Sniffing (using tcpdump/tshark) ---
 def beacon_sniff():
@@ -398,6 +673,7 @@ def beacon_sniff():
             'stderr': result.get('stderr', '') if 'result' in locals() else ''
         }
 
+
 def channel_analyzer():
     """Analyze WiFi channels using iwlist."""
     try:
@@ -410,10 +686,12 @@ def channel_analyzer():
     except Exception as e:
         return {'ok': False, 'error': str(e), 'cmd': cmd if 'cmd' in locals() else None, 'stdout': result.get('stdout', '') if 'result' in locals() else '', 'stderr': result.get('stderr', '') if 'result' in locals() else ''}
 
+
 # --- Sniffer API Routes ---
 @app.route('/api/sniffer/beacon', methods=['POST'])
 def sniffer_beacon() -> Response:
     return jsonify(beacon_sniff())
+
 
 @app.route('/api/sniffer/channel_analyzer', methods=['POST'])
 def sniffer_channel_analyzer() -> Response:
