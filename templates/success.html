@@ -6,95 +6,56 @@
 <title>CyberPWN — DASHBOARD</title>
 <!-- System fonts only for compatibility -->
 <style>
-  :root {
-    --nord0: #000000;
-    --nord1: #000000;
-    --nord2: #000000;
-    --nord3: #202020;
-    --nord4: #EAEAEA;
-    --nord5: #EAEAEA;
-    --nord6: #EAEAEA;
-    --nord7: #00FFE7;
-    --nord8: #00FFE7;
-    --nord9: #FF00C8;
-    --nord10: #00FFE7;
-    --nord11: #FF3C00;
-    --nord12: #FFD600;
-    --nord13: #FFD600;
-    --nord14: #00FF5A;
-    --nord15: #FF00C8;
-  }
   *{box-sizing:border-box}
   html,body{
     height:320px;
     width:240px;
     margin:0;
     padding:0;
-    background:var(--nord0);
-    color:var(--nord4);
+    background:#000;
+    color:#fff;
     font-family: Arial, Helvetica, sans-serif;
     overflow-y:auto;
   }
   body{padding:8px 4px 16px;}
+  a{color:#FFD600 !important;text-decoration:none;}
+  a:visited{color:#FFD600 !important;}
   .brand{
-    color:var(--nord8);
+    color:#00FFE7;
     font-size:11px;
     letter-spacing:2px;
     margin-bottom:4px;
     font-family:'Cinzel Decorative', 'UnifrakturCook', serif;
-    text-shadow:0 1px 2px var(--nord3);
-  }
-  .tabs{
-    display:flex;
-    gap:4px;
-    margin-bottom:10px;
-  }
-  .tab-btn{
-    flex:1;
-    padding:6px 0;
-    background:var(--nord0);
-    color:var(--nord4);
-    border:1px solid var(--nord8);
-    font-weight:bold;
-    cursor:pointer;
-    font-size:11px;
-    border-radius:0;
-    transition:background .15s, color .15s, border .15s;
-  }
-  .tab-btn.active{
-    background:var(--nord8);
-    color:var(--nord0);
-    border:1px solid var(--nord8);
+    text-shadow:0 1px 2px #202020;
   }
   .sections{margin-bottom:10px;}
   .section-title{
     font-size:12px;
     font-weight:bold;
-    color:var(--nord7);
+    color:#00FFE7;
     margin:10px 0 4px 0;
     letter-spacing:1px;
-    text-shadow:0 1px 2px var(--nord1);
+    text-shadow:0 1px 2px #000;
   }
   .menu-list{list-style:none;padding:0;margin:0;}
   .menu-list li{margin-bottom:4px;}
   .menu-btn{
     display:block;
     width:100%;
-    background:var(--nord0);
-    color:var(--nord13);
-    border:1px solid var(--nord13);
+    background:#000;
+    color:#FFD600;
+    border:1px solid #FFD600;
     padding:6px 8px;
     font-size:10px;
     font-weight:bold;
     border-radius:0;
     cursor:pointer;
-    transition:background .15s, color .15s, border .15s;
     text-align:left;
   }
   .menu-btn:focus,.menu-btn:hover{
-    background:var(--nord8);
-    color:var(--nord0);
-    border:1px solid var(--nord8);
+    background:#00FFE7;
+    color:#000;
+    border:1px solid #00FFE7;
   }
   .menu-group{margin-bottom:8px;}
 </style>
@@ -102,16 +63,16 @@
 window.onload=function(){};
 </script>
 </head>
-<body>
+<body style="background:#000;color:#fff;">
 <noscript>
 <div style="background:#222;color:#fff;padding:10px 8px 10px 8px;font-size:13px;">
   <b>NO JAVASCRIPT DETECTED</b><br>
   <ul style="margin:10px 0 0 0;padding:0 0 0 16px;">
-    <li><a href="2_beacon_sniff.html" style="color:#0cf;">Beacon Sniff</a></li>
-    <li><a href="2_channel_analyzer.html" style="color:#0cf;">Channel Analyzer</a></li>
-    <li><a href="2_interfaces.html" style="color:#0cf;">Interfaces</a></li>
-    <li><a href="url_sniffer.html" style="color:#0cf;">URL Sniffer</a></li>
-    <li><a href="port_scan.html" style="color:#0cf;">Port Audit</a></li>
+    <li><a href="2_beacon_sniff.html" style="color:#FFD600;">Beacon Sniff</a></li>
+    <li><a href="2_channel_analyzer.html" style="color:#FFD600;">Channel Analyzer</a></li>
+    <li><a href="2_interfaces.html" style="color:#FFD600;">Interfaces</a></li>
+    <li><a href="url_sniffer.html" style="color:#FFD600;">URL Sniffer</a></li>
+    <li><a href="port_scan.html" style="color:#FFD600;">Port Audit</a></li>
   </ul>
 </div>
 </noscript>
