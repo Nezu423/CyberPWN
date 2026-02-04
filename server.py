@@ -1060,40 +1060,60 @@ def beacon_sniff():
             
             # Parse tabular output: IN-USE  SSID  MODE  CHAN  RATE  SIGNAL  SECURITY
             parts = line.split()
-            if len(parts) < 7:
+            
+            # Remove unwanted elements
+            cleaned_parts = []
+            for part in parts:
+                # Skip BSSID (looks like MAC address)
+                if re.match(r'^([0-9A-Fa-f]{2}:){5}[0-9A-Fa-f]{2}$', part):
+                    continue
+                # Skip Infra mode
+                if part == 'Infra':
+                    continue
+                # Skip signal bars (unicode blocks)
+                if any(c in '▂▄▆█' for c in part):
+                    continue
+                cleaned_parts.append(part)
+            
+            if len(cleaned_parts) < 3:
                 continue
             
-            # Extract SSID (might contain spaces, look for signal pattern)
-            ssid = ''
-            signal_str = ''
-            security = ''
+            # Reconstruct the line without unwanted elements
+            cleaned_line = ' '.join(cleaned_parts)
             
-            # Find signal (numeric value)
-            for i, part in enumerate(parts):
-                # Check for numeric signal (0-100)
+            # Extract SSID, signal, and security from cleaned data
+            # Try to find numeric signal first
+            signal_num = None
+            for part in cleaned_parts:
                 if part.isdigit() and 0 <= int(part) <= 100:
-                    signal_str = part
-                    # Security is usually after signal
-                    if i + 1 < len(parts):
-                        security = ' '.join(parts[i+1:])
-                    # SSID is everything before mode (skip IN-USE)
-                    ssid = ' '.join(parts[1:i])
+                    signal_num = int(part)
                     break
             
-            if not ssid:
-                continue
-            
-            # Convert signal to numeric
-            signal_num = None
-            try:
-                signal_num = int(signal_str)
-            except:
+            # If no numeric signal, default to 50
+            if signal_num is None:
                 signal_num = 50
             
             # Calculate RSSI (dBm)
             rssi = None
             if signal_num is not None:
                 rssi = int((signal_num / 2) - 100)
+            
+            # Use the cleaned line as SSID if we can't parse properly
+            ssid = cleaned_line
+            security = 'Unknown'
+            
+            # Try to extract SSID and security more intelligently
+            # Look for common security types at the end
+            security_types = ['WPA2', 'WPA', 'WEP', 'Open', '--']
+            for sec_type in security_types:
+                if cleaned_line.endswith(sec_type):
+                    security = sec_type
+                    ssid = cleaned_line[:-len(sec_type)].strip()
+                    break
+            
+            # Skip empty SSIDs
+            if not ssid:
+                continue
             
             key = ssid + '|' + str(signal_num) + '|' + security
             if key in seen:
