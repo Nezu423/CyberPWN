@@ -1185,7 +1185,7 @@ def api_wardriving_raw():
         result = run_capture(cmd, timeout=12)
         
         # Create logs directory if it doesn't exist
-        logs_dir = os.path.join(os.path.expanduser('~'), 'CyberPWN', 'logs')
+        logs_dir = '/home/w4lkm4n/CyberPWN/logs'
         os.makedirs(logs_dir, exist_ok=True)
         
         # Create new log file with current date and time for each session
