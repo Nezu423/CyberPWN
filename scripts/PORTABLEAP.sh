@@ -5,7 +5,7 @@
 
 set -e
 SSID="PWN"
-AP_PASS="pwn123"
+AP_PASS="pwn12345"  # 8+ characters for WPA2
 # Project root (parent of scripts/)
 BASE="$(cd "$(dirname "$0")/.." && pwd)"
 CONFIG="$BASE/evil_twin.conf"

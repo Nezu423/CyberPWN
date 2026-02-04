@@ -12,7 +12,7 @@ NC='\033[0m'
 
 # Configuration
 SSID="PWN"
-PASSWORD="pwn123"
+PASSWORD="pwn12345"  # 8+ characters for WPA2
 AP_IFACE="wlan0"
 AP_IP="192.168.4.1"
 INTERNET_IFACE=""  # No internet sharing
