@@ -1,0 +1,231 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Wardriving - CyberPWN</title>
+<style>
+:root {
+  --bg: #000;
+  --fg: #fff;
+  --accent: #FF00C8;
+  --border: #FF69B4;
+}
+body {
+  background: var(--bg);
+  color: var(--fg);
+  font-family: 'Courier New', monospace;
+  margin: 0;
+  padding: 2rem;
+}
+.header {
+  display: flex;
+  justify-content: flex-end;
+  margin-bottom: 2rem;
+}
+.dash {
+  color: var(--accent);
+  text-decoration: none;
+  border: 1px solid var(--border);
+  padding: 0.3rem 0.8rem;
+  font-size: 0.9rem;
+}
+.dash:hover {
+  background: var(--accent);
+  color: var(--bg);
+}
+h1 {
+  color: var(--accent);
+  text-shadow: 0 0 10px var(--accent);
+  margin-bottom: 1rem;
+}
+button {
+  background: var(--accent);
+  color: var(--bg);
+  border: none;
+  padding: 0.5rem 1rem;
+  font-family: inherit;
+  cursor: pointer;
+  margin: 0.5rem;
+  transition: all 0.3s;
+}
+button:hover {
+  box-shadow: 0 0 10px var(--accent);
+}
+input[type="text"] {
+  background: #111;
+  color: var(--fg);
+  border: 1px solid var(--border);
+  padding: 0.5rem;
+  font-family: inherit;
+  margin: 0.5rem;
+}
+#result {
+  margin-top: 1rem;
+  white-space: pre-wrap;
+  font-size: 0.9rem;
+}
+</style>
+</head>
+<body>
+<div class="header">
+<a href="/success" class="dash">&lt; DASH</a>
+</div>
+<h1>Wardriving</h1>
+<div>
+  <input type="text" id="ssidFilter" placeholder="SSID filter (optional)">
+  <button onclick="startWardriving()">Start Wardriving</button>
+  <button onclick="stopWardriving()">Stop</button>
+  <button onclick="downloadLog()">Download Log</button>
+</div>
+<div id="result">Click Start to begin wardriving.</div>
+<script>
+function esc(str) {
+  return String(str).replace(/[&<>"']/g, function(s) {
+    return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[s];
+  });
+}
+
+function apiJson(method, url, data, cb) {
+  var xhr = new XMLHttpRequest();
+  xhr.open(method, url, true);
+  xhr.setRequestHeader('Content-Type', 'application/json');
+  xhr.onload = function() {
+    if (xhr.status === 200) {
+      try { cb(null, JSON.parse(xhr.responseText)); }
+      catch(e) { cb(e, null); }
+    } else {
+      cb(new Error('HTTP ' + xhr.status), null);
+    }
+  };
+  xhr.onerror = function() { cb(new Error('Network error'), null); };
+  xhr.send(JSON.stringify(data));
+}
+
+var wardrivingInterval = null;
+var wardrivingLog = [];
+
+function startWardriving() {
+  if (wardrivingInterval) return;
+  
+  var ssidFilter = document.getElementById('ssidFilter').value;
+  wardrivingLog = [];
+  
+  wardrivingInterval = setInterval(function() {
+    apiJson('POST', '/api/wardriving/scan', {ssid_filter: ssidFilter}, function(err, data) {
+      var html = '';
+      if (err) {
+        html = '<span style="color:#BF616A;">Error: ' + err + '</span>';
+        document.getElementById('result').innerHTML = html;
+        return;
+      }
+      
+      if (data && data.ok) {
+        var aps = data.aps || [];
+        
+        // Check for open networks
+        var openNetworks = [];
+        var i;
+        for (i = 0; i < aps.length; i++) {
+          var a = aps[i] || {};
+          var ssid = (a.ssid === null || a.ssid === undefined) ? '' : String(a.ssid);
+          var security = (a.security === null || a.security === undefined) ? '' : String(a.security);
+          if (security === 'OPEN' || security.toLowerCase() === 'open') {
+            var ssidName = ssid.replace(/\s+OPEN\s*$/i, '');
+            openNetworks.push(ssidName);
+          }
+        }
+        
+        // Show alert for open networks
+        if (openNetworks.length > 0) {
+          html += '<div style="background:#8B0000;border:1px solid #FF0000;padding:8px;margin-bottom:10px;border-radius:4px;">';
+          html += '<div style="color:#FF6B6B;font-weight:bold;">⚠ OPEN NETWORKS DETECTED:</div>';
+          html += '<div style="color:#FFA07A;font-size:0.9em;">' + esc(openNetworks.join(', ')) + '</div>';
+          html += '</div>';
+        }
+        
+        html += '<b>Networks Found: ' + (data.count || aps.length) + '</b><br>';
+        html += '<div style="margin-top:6px;font-family:monospace;">';
+        
+        if (!aps.length) {
+          html += '<span style="color:#FFD600;">No networks found.</span>';
+        } else {
+          for (i = 0; i < aps.length; i++) {
+            var a = aps[i] || {};
+            var ssid = (a.ssid === null || a.ssid === undefined) ? '' : String(a.ssid);
+            var signal = (a.signal === null || a.signal === undefined) ? 'N/A' : (String(a.signal) + '%');
+            var rssi = (a.rssi === null || a.rssi === undefined) ? 'N/A' : (String(a.rssi) + 'dBm');
+            var lat = (a.lat === null || a.lat === undefined) ? 'N/A' : a.lat;
+            var lon = (a.lon === null || a.lon === undefined) ? 'N/A' : a.lon;
+            
+            html += '<div style="margin:0.2rem 0;">';
+            html += '<div style="color:#FFD600;">' + esc(ssid) + '</div>';
+            html += '<div style="color:#888;font-size:0.9em;">';
+            html += 'Signal: ' + signal + ' (' + rssi + ') | ';
+            html += 'Location: ' + lat + ', ' + lon;
+            html += '</div>';
+            html += '</div>';
+            
+            // Add to log
+            wardrivingLog.push({
+              timestamp: new Date().toISOString(),
+              ssid: ssid,
+              signal: a.signal,
+              rssi: a.rssi,
+              security: a.security,
+              lat: lat,
+              lon: lon
+            });
+          }
+        }
+        html += '</div>';
+      } else {
+        html = '<span style="color:#BF616A;">Error: ' + ((data && data.error) ? data.error : 'Unknown') + '</span>';
+      }
+      document.getElementById('result').innerHTML = html;
+    });
+  }, 5000); // Scan every 5 seconds
+  
+  document.getElementById('result').innerHTML = 'Starting wardriving...';
+}
+
+function stopWardriving() {
+  if (wardrivingInterval) {
+    clearInterval(wardrivingInterval);
+    wardrivingInterval = null;
+    document.getElementById('result').innerHTML = 'Wardriving stopped.<br>Log contains ' + wardrivingLog.length + ' entries.';
+  }
+}
+
+function downloadLog() {
+  if (wardrivingLog.length === 0) {
+    alert('No data to download');
+    return;
+  }
+  
+  // Create CSV content
+  var csv = 'Timestamp,SSID,Signal (%),RSSI (dBm),Security,Latitude,Longitude\n';
+  wardrivingLog.forEach(function(entry) {
+    csv += entry.timestamp + ',';
+    csv += '"' + (entry.ssid || '').replace(/"/g, '""') + '",';
+    csv += (entry.signal || '') + ',';
+    csv += (entry.rssi || '') + ',';
+    csv += (entry.security || '') + ',';
+    csv += (entry.lat || '') + ',';
+    csv += (entry.lon || '') + '\n';
+  });
+  
+  // Create download link
+  var blob = new Blob([csv], { type: 'text/csv' });
+  var url = URL.createObjectURL(blob);
+  var a = document.createElement('a');
+  a.href = url;
+  a.download = 'wardriving_log_' + new Date().toISOString().slice(0,10) + '.csv';
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+}
+</script>
+</body>
+</html>

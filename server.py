@@ -44,6 +44,7 @@ PIN_SHA256 = hashlib.sha256("062823".encode()).hexdigest()
 _UNAUTH_API_PATHS = {
     '/api/verify_pin',
     '/api/sniffer/beacon',
+    '/api/wardriving/scan',
 }
 
 _IFACE_RE: re.Pattern[str] = re.compile(r'^[a-zA-Z0-9_.:-]{1,20}$')
@@ -1157,6 +1158,56 @@ def channel_analyzer():
 
 
 # --- Sniffer API Routes ---
+@app.route('/api/wardriving/scan', methods=['POST'])
+def api_wardriving_scan():
+    """Wardriving scan with SSID filter and file logging."""
+    try:
+        # Get SSID filter from request
+        data = request.get_json() or {}
+        ssid_filter = data.get('ssid_filter', '').strip()
+        
+        # Use beacon_sniff to get networks
+        beacon_data = beacon_sniff()
+        
+        if not beacon_data.get('ok'):
+            return jsonify(beacon_data)
+        
+        # Filter by SSID if provided
+        aps = beacon_data.get('aps', [])
+        if ssid_filter:
+            filtered_aps = []
+            for ap in aps:
+                ssid = ap.get('ssid', '').lower()
+                if ssid_filter.lower() in ssid:
+                    filtered_aps.append(ap)
+            aps = filtered_aps
+        
+        # Add mock location data (in real implementation, use GPS)
+        for ap in aps:
+            ap['lat'] = round(40.7128 + (hash(ap['ssid']) % 1000) / 10000, 4)
+            ap['lon'] = round(-74.0060 + (hash(ap['ssid'] + 'lon') % 1000) / 10000, 4)
+        
+        # Log to file
+        log_dir = os.path.join(base_dir, 'logs')
+        os.makedirs(log_dir, exist_ok=True)
+        log_file = os.path.join(log_dir, 'wardriving.log')
+        
+        with open(log_file, 'a') as f:
+            timestamp = time.strftime('%Y-%m-%d %H:%M:%S')
+            for ap in aps:
+                log_entry = f"{timestamp},{ap.get('ssid')},{ap.get('signal')},{ap.get('rssi')},{ap.get('security')},{ap.get('lat')},{ap.get('lon')}\n"
+                f.write(log_entry)
+        
+        return jsonify({
+            'ok': True,
+            'aps': aps,
+            'count': len(aps),
+            'filter': ssid_filter,
+            'log_file': log_file
+        })
+    except Exception as e:
+        return jsonify({'ok': False, 'error': str(e)}), 500
+
 @app.route('/api/sniffer/beacon', methods=['POST'])
 def sniffer_beacon() -> Response:
     return jsonify(beacon_sniff())
