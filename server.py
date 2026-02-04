@@ -1646,7 +1646,11 @@ def api_server_info() -> Response:
             for interface in socket.getaddrinfo(hostname, None):
                 ip = interface[4][0]
                 if ip not in ips and not ip.startswith('127.') and not ip.startswith('fe80'):
-                    ips.append(ip)
+                    # Prioritize IPv4 addresses
+                    if ':' not in ip:  # IPv4 address
+                        ips.insert(0, ip)  # Add IPv4 to front
+                    else:  # IPv6 address
+                        ips.append(ip)
         except Exception:
             pass
         
@@ -1654,19 +1658,24 @@ def api_server_info() -> Response:
         if not ips:
             ips = ['127.0.0.1']
         
+        # Filter out IPv6 addresses for primary IP
+        ipv4_ips = [ip for ip in ips if ':' not in ip]
+        primary_ip = ipv4_ips[0] if ipv4_ips else ips[0]
+        
         # Check if server is bound to primary IP
-        primary_ip = '192.168.4.1'
-        is_primary_bound = primary_ip in ips
+        primary_ip_expected = '192.168.4.1'
+        is_primary_bound = primary_ip_expected in ips
         
         return jsonify({
             'ok': True,
             'hostname': hostname,
-            'primary_ip': ips[0] if ips else '127.0.0.1',
+            'primary_ip': primary_ip,
             'all_ips': ips,
+            'ipv4_ips': ipv4_ips,
             'port': 5000,
-            'access_urls': [f"http://{ip}:5000" for ip in ips],
+            'access_urls': [f"http://{ip}:5000" for ip in ipv4_ips],  # Only IPv4 URLs
             'bound_to_primary': is_primary_bound,
-            'expected_primary': primary_ip,
+            'expected_primary': primary_ip_expected,
             'binding_status': 'primary' if is_primary_bound else 'fallback'
         })
         

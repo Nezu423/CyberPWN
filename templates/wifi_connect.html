@@ -130,6 +130,11 @@ function getServerInfo() {
       output += 'Primary IP: ' + data.primary_ip + '\n';
       output += 'Port: ' + data.port + '\n';
       output += 'Hostname: ' + data.hostname + '\n\n';
+      
+      if (data.ipv4_ips && data.ipv4_ips.length > 0) {
+        output += 'IPv4 IPs: ' + data.ipv4_ips.join(', ') + '\n';
+      }
+      
       output += 'Access URLs:\n';
       data.access_urls.forEach(function(url) {
         output += '  ' + url + '\n';
@@ -146,6 +151,11 @@ function getServerInfo() {
       }
       
       output += '\nBinding Status: ' + data.binding_status.toUpperCase();
+      
+      // Show IPv6 warning if present
+      if (data.all_ips && data.all_ips.some(function(ip) { return ip.includes(':'); })) {
+        output += '\n⚠ IPv6 addresses detected but prioritized IPv4';
+      }
       
       serverInfo.innerHTML = esc(output);
     } else {

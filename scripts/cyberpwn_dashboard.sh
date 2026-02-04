@@ -45,6 +45,8 @@ try:
     print(f'Bound IP: {data.get(\"primary_ip\", \"Unknown\")}')
     print(f'Hostname: {data.get(\"hostname\", \"Unknown\")}')
     print(f'Port: {data.get(\"port\", \"Unknown\")}')
+    if data.get('ipv4_ips'):
+        print(f'IPv4 IPs: {\", \".join(data[\"ipv4_ips\"])}')
     if data.get('all_ips'):
         print(f'All IPs: {\", \".join(data[\"all_ips\"])}')
     print(f'Binding Status: {data.get(\"binding_status\", \"Unknown\")}')
