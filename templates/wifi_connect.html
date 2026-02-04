@@ -1,0 +1,325 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>WiFi Connect</title>
+<style>
+*{box-sizing:border-box}
+html,body{
+  height:100%;
+  width:100%;
+  margin:0;
+  padding:0;
+  background:#000;
+  color:#fff;
+  font-family: Arial, Helvetica, sans-serif;
+  overflow-y:auto;
+}
+body{padding:10px 8px 16px;}
+a{color:#fff !important;text-decoration:none;}
+a:visited{color:#fff !important;}
+.h{position:relative;border-bottom:1px solid #FF00C8;padding-bottom:8px;margin-bottom:10px;}
+.t{display:block;padding-right:88px;color:#fff;font-size:12px;font-weight:bold;letter-spacing:1px;}
+.back{position:absolute;right:0;top:0;color:#fff;text-decoration:none;border:1px solid #FF00C8;padding:3px 6px;font-size:10px;background:transparent;}
+.back:focus{background:#FF00C8;color:#000;}
+.card{border:1px solid #FF00C8;background:#000;padding:10px 8px;margin-bottom:10px;}
+.st{font-size:12px;font-weight:bold;margin-bottom:6px;color:#fff;}
+.ok{color:#fff;}
+.warn{color:#fff;}
+.bad{color:#fff;}
+.dim{color:#bbb;}
+.btn{display:block;width:100%;margin-top:6px;padding:10px 8px;background:#000;color:#fff;border:1px solid #FF00C8;font-size:12px;font-weight:bold;cursor:pointer;}
+.btn:focus,.btn:hover{background:#FF00C8;color:#000;}
+.btn2{border-color:#FF69B4;color:#fff;}
+.btn2:focus,.btn2:hover{background:#FF69B4;color:#000;border-color:#FF69B4;}
+.btn3{border-color:#C71585;color:#fff;}
+.btn3:focus,.btn3:hover{background:#C71585;color:#000;border-color:#C71585;}
+.btn4{border-color:#DA70D6;color:#fff;}
+.btn4:focus,.btn4:hover{background:#DA70D6;color:#000;border-color:#DA70D6;}
+.log{background:#000;border:1px solid #FF00C8;color:#fff;font-size:11px;padding:8px;white-space:pre-wrap;}
+.lbl{font-size:11px;color:#fff;margin:6px 0 2px 0;}
+.in{width:100%;padding:6px;background:#000;color:#fff;border:1px solid #FF00C8;font-size:11px;outline:none;}
+.in:focus{border-color:#FF69B4;}
+.open{color:#00ff5a;font-weight:bold;}
+.secured{color:#ffd600;}
+.network{border:1px solid #FF00C8;background:#000;padding:8px;margin-bottom:8px;cursor:pointer;}
+.network:hover{background:#FF00C8;color:#000;}
+.network.selected{background:#FF00C8;color:#000;}
+.network-info{font-size:11px;margin-top:4px;}
+.signal-bar{width:100%;height:4px;background:#333;border-radius:2px;margin-top:4px;overflow:hidden;}
+.signal-fill{height:100%;background:#00ff5a;transition:width 0.3s;}
+.password-input{width:100%;margin-top:4px;padding:4px;background:#111;border:1px solid #FF00C8;color:#fff;font-size:10px;}
+.connecting{color:#FF69B4;font-weight:bold;}
+.connected{color:#00ff5a;font-weight:bold;}
+.error{color:#ff3c00;font-weight:bold;}
+</style>
+</head>
+<body>
+<div class="h">
+  <div class="t">WIFI CONNECT</div>
+  <a class="back" href="success.html">&lt; DASH</a>
+</div>
+
+<div class="card">
+  <div class="st">Server Access</div>
+  <div id="serverInfo" class="log">Loading server info...</div>
+</div>
+
+<div class="card">
+  <div class="st">WiFi Scanner</div>
+  <button class="btn" type="button" onclick="scanNetworks()">SCAN NETWORKS</button>
+  <div id="result" class="log">Click "SCAN NETWORKS" to discover WiFi networks...</div>
+</div>
+
+<div class="card">
+  <div class="st">Available Networks</div>
+  <div id="networkList"></div>
+</div>
+
+<script>
+function esc(s) {
+  var div = document.createElement('div');
+  div.appendChild(document.createTextNode(s));
+  return div.innerHTML;
+}
+
+function apiJson(method, url, data, callback) {
+  var xhr = new XMLHttpRequest();
+  xhr.open(method, url, true);
+  xhr.setRequestHeader('Content-Type', 'application/json');
+  xhr.onreadystatechange = function() {
+    if (xhr.readyState === 4) {
+      if (xhr.status === 200) {
+        try {
+          var response = JSON.parse(xhr.responseText);
+          callback(null, response);
+        } catch (e) {
+          callback('Invalid JSON response', null);
+        }
+      } else {
+        callback('HTTP ' + xhr.status, null);
+      }
+    }
+  };
+  xhr.onerror = function() {
+    callback('Network error', null);
+  };
+  xhr.send(JSON.stringify(data));
+}
+
+var selectedNetwork = null;
+var isConnecting = false;
+
+// Load server info on page load
+window.onload = function() {
+  getServerInfo();
+};
+
+function getServerInfo() {
+  var serverInfo = document.getElementById('serverInfo');
+  
+  apiJson('GET', '/api/server/info', {}, function(err, data) {
+    if (err) {
+      serverInfo.innerHTML = '<span style="color:#ff6b6b;">Error: ' + err + '</span>';
+      return;
+    }
+    
+    if (data && data.ok) {
+      var output = '=== Server Information ===\n\n';
+      output += 'Primary IP: ' + data.primary_ip + '\n';
+      output += 'Port: ' + data.port + '\n';
+      output += 'Hostname: ' + data.hostname + '\n\n';
+      output += 'Access URLs:\n';
+      data.access_urls.forEach(function(url) {
+        output += '  ' + url + '\n';
+      });
+      serverInfo.innerHTML = esc(output);
+    } else {
+      serverInfo.innerHTML = '<span style="color:#ff6b6b;">Error: ' + ((data && data.error) ? data.error : 'Unknown') + '</span>';
+    }
+  });
+}
+
+function scanNetworks() {
+  var result = document.getElementById('result');
+  var networkList = document.getElementById('networkList');
+  
+  result.innerHTML = 'Scanning for WiFi networks...';
+  networkList.innerHTML = '';
+  
+  apiJson('POST', '/api/sniffer/beacon', {}, function(err, data) {
+    if (err) {
+      result.innerHTML = '<span style="color:#ff6b6b;">Error: ' + err + '</span>';
+      return;
+    }
+    
+    if (data && data.ok) {
+      var networks = data.aps || [];
+      var openNetworks = [];
+      var securedNetworks = [];
+      
+      networks.forEach(function(network) {
+        if (network.security === 'OPEN') {
+          openNetworks.push(network);
+        } else {
+          securedNetworks.push(network);
+        }
+      });
+      
+      result.innerHTML = 'Found ' + networks.length + ' networks (' + openNetworks.length + ' open)';
+      
+      // Display networks
+      var html = '';
+      
+      if (openNetworks.length > 0) {
+        html += '<div class="st">Open Networks (' + openNetworks.length + ')</div>';
+        openNetworks.forEach(function(network, index) {
+          var signalPercent = network.signal || 0;
+          html += '<div class="network" onclick="selectNetwork(\'' + network.ssid + '\', ' + (network.signal || 0) + '\', \'' + (network.security || 'UNKNOWN') + '\')">';
+          html += '<div class="network-info"><span class="open">📡 ' + esc(network.ssid) + '</span></div>';
+          html += '<div class="network-info">Signal: ' + signalPercent + '%</div>';
+          html += '<div class="signal-bar"><div class="signal-fill" style="width:' + signalPercent + '%"></div></div>';
+          html += '</div>';
+        });
+      }
+      
+      if (securedNetworks.length > 0) {
+        html += '<div class="st">Secured Networks (' + securedNetworks.length + ')</div>';
+        securedNetworks.forEach(function(network, index) {
+          var signalPercent = network.signal || 0;
+          html += '<div class="network" onclick="selectNetwork(\'' + network.ssid + '\', ' + (network.signal || 0) + '\', \'' + (network.security || 'UNKNOWN') + '\')">';
+          html += '<div class="network-info"><span class="secured">🔒 ' + esc(network.ssid) + '</span></div>';
+          html += '<div class="network-info">Signal: ' + signalPercent + '%</div>';
+          html += '<div class="network-info">Security: ' + network.security + '</div>';
+          html += '<div class="signal-bar"><div class="signal-fill" style="width:' + signalPercent + '%"></div></div>';
+          html += '</div>';
+        });
+      }
+      
+      if (networks.length === 0) {
+        html += '<div class="dim">No networks found</div>';
+      }
+      
+      networkList.innerHTML = html;
+    } else {
+      result.innerHTML = '<span style="color:#ff6b6b;">Error: ' + ((data && data.error) ? data.error : 'Unknown') + '</span>';
+    }
+  });
+}
+
+function selectNetwork(ssid, signal, security) {
+  if (isConnecting) {
+    return;
+  }
+  
+  // Deselect previous network
+  var networks = document.querySelectorAll('.network');
+  networks.forEach(function(net) {
+    net.classList.remove('selected');
+  });
+  
+  // Select new network
+  var networkElements = document.querySelectorAll('.network');
+  for (var i = 0; i < networkElements.length; i++) {
+    var net = networkElements[i];
+    var netSsid = net.getAttribute('onclick').match(/'([^']+)'/)[1];
+    if (netSsid === ssid) {
+      net.classList.add('selected');
+      selectedNetwork = {ssid: ssid, signal: signal, security: security};
+      break;
+    }
+  }
+  
+  showConnectionDialog(ssid, security);
+}
+
+function showConnectionDialog(ssid, security) {
+  var networkList = document.getElementById('networkList');
+  var html = '<div class="card">';
+  html += '<div class="st">Connect to: ' + esc(ssid) + '</div>';
+  html += '<div class="network-info">Security: ' + esc(security) + '</div>';
+  
+  if (security === 'OPEN') {
+    html += '<button class="btn btn2" type="button" onclick="connectNetwork()">CONNECT</button>';
+  } else {
+    html += '<div class="password-input">';
+    html += '<input type="password" id="password" placeholder="Enter password" class="in" />';
+    html += '</div>';
+    html += '<button class="btn btn2" type="button" onclick="connectNetwork()">CONNECT</button>';
+  }
+  html += '<button class="btn" type="button" onclick="cancelConnection()">CANCEL</button>';
+  html += '</div>';
+  
+  networkList.innerHTML = html;
+}
+
+function connectNetwork() {
+  if (!selectedNetwork || isConnecting) {
+    return;
+  }
+  
+  isConnecting = true;
+  var networkList = document.getElementById('networkList');
+  
+  var password = '';
+  if (selectedNetwork.security !== 'OPEN') {
+    password = document.getElementById('password').value;
+  }
+  
+  networkList.innerHTML = '<div class="connecting">Connecting to ' + esc(selectedNetwork.ssid) + '...</div>';
+  
+  apiJson('POST', '/api/wifi/connect', {
+    ssid: selectedNetwork.ssid,
+    password: password
+  }, function(err, data) {
+    isConnecting = false;
+    
+    if (err) {
+      networkList.innerHTML = '<div class="error">Connection failed: ' + err + '</div>';
+      return;
+    }
+    
+    if (data && data.ok) {
+      networkList.innerHTML = '<div class="connected">✓ Connected to ' + esc(selectedNetwork.ssid) + '</div>';
+      networkList.innerHTML += '<div class="network-info">IP: ' + esc(data.ip || 'N/A') + '</div>';
+      networkList.innerHTML += '<button class="btn btn3" type="button" onclick="disconnectNetwork()">DISCONNECT</button>';
+      
+      // Refresh server info to show new IP
+      getServerInfo();
+    } else {
+      networkList.innerHTML = '<div class="error">Connection failed: ' + ((data && data.error) ? data.error : 'Unknown') + '</div>';
+      networkList.innerHTML += '<button class="btn" type="button" onclick="scanNetwork()">SCAN AGAIN</button>';
+    }
+  });
+}
+
+function disconnectNetwork() {
+  if (isConnecting) {
+    return;
+  }
+  
+  var networkList = document.getElementById('networkList');
+  networkList.innerHTML = '<div class="connecting">Disconnecting...</div>';
+  
+  apiJson('POST', '/api/wifi/disconnect', {}, function(err, data) {
+    if (err) {
+      networkList.innerHTML = '<div class="error">Disconnect failed: ' + err + '</div>';
+      return;
+    }
+    
+    networkList.innerHTML = '<div class="dim">Disconnected</div>';
+    networkList.innerHTML += '<button class="btn" type="button" onclick="scanNetwork()">SCAN NETWORKS</button>';
+    
+    selectedNetwork = null;
+  });
+}
+
+function cancelConnection() {
+  isConnecting = false;
+  selectedNetwork = null;
+  scanNetworks();
+}
+</script>
+</body>
+</html>

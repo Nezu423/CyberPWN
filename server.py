@@ -47,6 +47,9 @@ _UNAUTH_API_PATHS = {
     '/api/wardriving/raw',
     '/api/wardriving/reset',
     '/api/nmap/scan',
+    '/api/wifi/connect',
+    '/api/wifi/disconnect',
+    '/api/server/info',
 }
 
 _IFACE_RE: re.Pattern[str] = re.compile(r'^[a-zA-Z0-9_.:-]{1,20}$')
@@ -733,6 +736,24 @@ def home():
     if session.get('auth'):
         return render_template('success.html')
     return render_template('index.html')
+
+
+@app.route('/dashboard_monitor')
+def dashboard_monitor():
+    """Dashboard monitor page."""
+    return render_template('dashboard_monitor.html')
+
+
+@app.route('/wifi_connect')
+def wifi_connect():
+    """WiFi connection page."""
+    return render_template('wifi_connect.html')
+
+
+@app.route('/nmap_scan')
+def nmap_scan():
+    """Nmap scan page."""
+    return render_template('nmap_scan.html')
 
 
 @app.route('/success.html')
@@ -1540,5 +1561,142 @@ def api_nmap_scan() -> Response:
     except Exception as e:
         return jsonify({'ok': False, 'error': str(e)}), 500
 
+
+@app.route('/api/wifi/connect', methods=['POST'])
+def api_wifi_connect() -> Response:
+    """Connect to WiFi network."""
+    try:
+        data = request.get_json(force=True, silent=True) or {}
+        ssid = (data.get('ssid') or '').strip()
+        password = (data.get('password') or '').strip()
+        
+        if not ssid:
+            return jsonify({'ok': False, 'error': 'SSID required'}), 400
+        
+        # Try to connect using nmcli
+        if password:
+            cmd = f"nmcli device wifi connect '{ssid}' password '{password}'"
+        else:
+            cmd = f"nmcli device wifi connect '{ssid}'"
+        
+        result = run_capture(cmd, timeout=30)
+        
+        if result.get('returncode') == 0:
+            # Get connection info
+            ip_cmd = "nmcli -t 4 device wifi show | grep 'IP4.ADDRESS' | head -1 | awk '{print $2}'"
+            ip_result = run_capture(ip_cmd, timeout=5)
+            ip = ip_result.get('stdout', '').strip()
+            
+            return jsonify({
+                'ok': True,
+                'ssid': ssid,
+                'ip': ip,
+                'message': 'Connected successfully'
+            })
+        else:
+            return jsonify({
+                'ok': False,
+                'error': 'Connection failed',
+                'stderr': result.get('stderr', ''),
+                'stdout': result.get('stdout', '')
+            })
+            
+    except Exception as e:
+        return jsonify({'ok': False, 'error': str(e)}), 500
+
+
+@app.route('/api/wifi/disconnect', methods=['POST'])
+def api_wifi_disconnect() -> Response:
+    """Disconnect from WiFi network."""
+    try:
+        cmd = "nmcli device wifi disconnect"
+        result = run_capture(cmd, timeout=10)
+        
+        if result.get('returncode') == 0:
+            return jsonify({
+                'ok': True,
+                'message': 'Disconnected successfully'
+            })
+        else:
+            return jsonify({
+                'ok': False,
+                'error': 'Disconnect failed',
+                'stderr': result.get('stderr', ''),
+                'stdout': result.get('stdout', '')
+            })
+            
+    except Exception as e:
+        return jsonify({'ok': False, 'error': str(e)}), 500
+
+
+@app.route('/api/server/info', methods=['GET'])
+def api_server_info() -> Response:
+    """Get server information including IP address."""
+    try:
+        import socket
+        
+        # Get local IP addresses
+        hostname = socket.gethostname()
+        local_ip = socket.gethostbyname(hostname)
+        
+        # Try to get all network interfaces
+        ips = []
+        try:
+            # Get all network interfaces
+            for interface in socket.getaddrinfo(hostname, None):
+                ip = interface[4][0]
+                if ip not in ips and not ip.startswith('127.') and not ip.startswith('fe80'):
+                    ips.append(ip)
+        except Exception:
+            pass
+        
+        # Add localhost if no other IPs found
+        if not ips:
+            ips = ['127.0.0.1']
+        
+        return jsonify({
+            'ok': True,
+            'hostname': hostname,
+            'primary_ip': ips[0] if ips else '127.0.0.1',
+            'all_ips': ips,
+            'port': 5000,
+            'access_urls': [f"http://{ip}:5000" for ip in ips]
+        })
+        
+    except Exception as e:
+        return jsonify({'ok': False, 'error': str(e)}), 500
+
 if __name__ == '__main__':
-    app.run(host='0.0.0.0', port=5000, debug=False)
+    import socket
+    
+    # Try to bind to 192.168.4.1 first
+    primary_host = '192.168.4.1'
+    fallback_host = '0.0.0.0'
+    port = 5000
+    
+    def try_bind_host(host):
+        try:
+            with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+                s.bind((host, port))
+                return True
+        except Exception as e:
+            print(f"Failed to bind to {host}:{port} - {e}")
+            return False
+    
+    # Try primary host first
+    if try_bind_host(primary_host):
+        print(f"Server running on http://{primary_host}:{port}")
+        app.run(host=primary_host, port=port, debug=False)
+    else:
+        print(f"Failed to bind to {primary_host}:{port}, trying fallback...")
+        # Try fallback
+        if try_bind_host(fallback_host):
+            print(f"Server running on http://0.0.0.0:{port} (all interfaces)")
+            print("Access via:")
+            print("  http://localhost:5000")
+            print("  http://127.0.0.1:5000")
+            print("  Or find your IP using 'ipconfig' or 'hostname -I'")
+            app.run(host=fallback_host, port=port, debug=False)
+        else:
+            print(f"Failed to bind to any host on port {port}")
+            print("Please check if port 5000 is available or try a different port")
