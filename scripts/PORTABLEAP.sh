@@ -47,14 +47,36 @@ wpa_key_mgmt=WPA-PSK
 rsn_pairwise=CCMP
 EOF
 
-# 2) Release interface from NetworkManager
+# 2) Release interface from NetworkManager and reset properly
+echo "Releasing $AP_IFACE from NetworkManager..."
 nmcli dev set "$AP_IFACE" managed no 2>/dev/null || true
+nmcli device disconnect "$AP_IFACE" 2>/dev/null || true
+
+# Kill any conflicting processes
+pkill -f "hostapd.*$AP_IFACE" 2>/dev/null || true
+pkill -f "dnsmasq.*$AP_IFACE" 2>/dev/null || true
+
+# Reset interface completely
+echo "Resetting $AP_IFACE..."
+ip link set "$AP_IFACE" down 2>/dev/null || true
 sleep 1
-ip link set "$AP_IFACE" down
-ip addr flush dev "$AP_IFACE"
-ip addr add "$AP_IP/24" dev "$AP_IFACE"
-ip link set "$AP_IFACE" up
+ip addr flush dev "$AP_IFACE" 2>/dev/null || true
+iwconfig "$AP_IFACE" mode managed 2>/dev/null || true
 sleep 1
+ip link set "$AP_IFACE" up 2>/dev/null || true
+sleep 2
+
+# Set IP address
+ip addr add "$AP_IP/24" dev "$AP_IFACE" 2>/dev/null || true
+sleep 1
+
+# Verify interface is ready
+if ! ip addr show "$AP_IFACE" | grep -q "$AP_IP"; then
+    echo "ERROR: Failed to configure $AP_IFACE with IP $AP_IP"
+    exit 1
+fi
+
+echo "Interface $AP_IFACE configured successfully"
 
 # 3) dnsmasq for DHCP (single client) and DNS
 cat > "$DNSMASQ_CONF" << EOF
@@ -76,10 +98,52 @@ EOF
 pkill -f "dnsmasq.*$DNSMASQ_CONF" 2>/dev/null || true
 dnsmasq -C "$DNSMASQ_CONF" -q 2>/dev/null &
 
-# 4) hostapd in background (no -d)
+# 4) hostapd in background with fallback driver
+echo "Starting hostapd..."
 pkill -f "hostapd.*$CONFIG" 2>/dev/null || true
-sleep 1
-hostapd -B -P "$HOSTAPD_PID" "$CONFIG" 2>/dev/null || hostapd -B "$CONFIG"
+sleep 2
+
+# Try with nl80211 driver first
+if ! timeout 10 hostapd -dd "$CONFIG" 2>&1 | grep -q "interface setup ok"; then
+    echo "nl80211 driver failed, trying alternative..."
+    
+    # Try with alternative driver
+    cat > "$CONFIG" << EOF
+# Evil Twin AP - $SSID (fallback driver)
+interface=$AP_IFACE
+driver=rtl871xdrv
+ssid=$SSID
+channel=6
+hw_mode=g
+max_num_sta=1  # Single client limit
+wpa=2
+wpa_passphrase=$AP_PASS
+wpa_key_mgmt=WPA-PSK
+rsn_pairwise=CCMP
+EOF
+    
+    if ! timeout 10 hostapd -dd "$CONFIG" 2>&1 | grep -q "interface setup ok"; then
+        echo "ERROR: Failed to setup interface with any driver"
+        echo "Available drivers:"
+        hostapd --help 2>&1 | grep -A 10 "drivers:" || echo "Could not list drivers"
+        exit 1
+    fi
+fi
+
+# Start hostapd in background
+hostapd -B -P "$HOSTAPD_PID" "$CONFIG" 2>/dev/null || {
+    echo "ERROR: Failed to start hostapd in background"
+    exit 1
+}
+
+# Verify hostapd is running
+sleep 3
+if ! pgrep -f "hostapd.*$CONFIG" >/dev/null; then
+    echo "ERROR: hostapd failed to start"
+    exit 1
+fi
+
+echo "hostapd started successfully"
 
 echo ""
 echo "=== AP SETUP COMPLETE ==="
