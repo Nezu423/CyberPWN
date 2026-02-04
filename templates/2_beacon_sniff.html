@@ -118,6 +118,27 @@ function updateBeacon() {
     }
     if (data && data.ok) {
       var aps = data.aps || [];
+      
+      // Check for open networks
+      var openNetworks = [];
+      var i;
+      for (i = 0; i < aps.length; i++) {
+        var a = aps[i] || {};
+        var ssid = (a.ssid === null || a.ssid === undefined) ? '' : String(a.ssid);
+        // Check if network is open (no security or contains "Open")
+        if (ssid.toLowerCase().indexOf('open') !== -1 || ssid.toLowerCase().indexOf('--') !== -1) {
+          openNetworks.push(ssid);
+        }
+      }
+      
+      // Show alert for open networks
+      if (openNetworks.length > 0) {
+        html += '<div style="background:#8B0000;border:1px solid #FF0000;padding:8px;margin-bottom:10px;border-radius:4px;">';
+        html += '<div style="color:#FF6B6B;font-weight:bold;">⚠ OPEN NETWORKS DETECTED:</div>';
+        html += '<div style="color:#FFA07A;font-size:0.9em;">' + esc(openNetworks.join(', ')) + '</div>';
+        html += '</div>';
+      }
+      
       html += '<b>APs Found: ' + (data.count || aps.length) + '</b><br>';
       html += '<div style="margin-top:6px;font-family:monospace;">';
       if (!aps.length) {
