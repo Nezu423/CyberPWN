@@ -125,9 +125,12 @@ function updateBeacon() {
       for (i = 0; i < aps.length; i++) {
         var a = aps[i] || {};
         var ssid = (a.ssid === null || a.ssid === undefined) ? '' : String(a.ssid);
-        // Check if network is open (no security or contains "Open")
-        if (ssid.toLowerCase().indexOf('open') !== -1 || ssid.toLowerCase().indexOf('--') !== -1) {
-          openNetworks.push(ssid);
+        var security = (a.security === null || a.security === undefined) ? '' : String(a.security);
+        // Check if network is open
+        if (security === 'OPEN' || security.toLowerCase() === 'open') {
+          // Extract just the SSID name (remove OPEN suffix if present)
+          var ssidName = ssid.replace(/\s+OPEN\s*$/i, '');
+          openNetworks.push(ssidName);
         }
       }
       

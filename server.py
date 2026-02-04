@@ -1091,9 +1091,21 @@ def beacon_sniff():
             # Calculate RSSI
             rssi = int((signal_num / 2) - 100)
             
+            # Check if network is unsecured (no security mentioned)
+            security_indicators = ['WPA2', 'WPA', 'WEP', 'PSK', 'EAP', '802.1x']
+            is_open = True
+            for indicator in security_indicators:
+                if indicator.lower() in display_str.lower():
+                    is_open = False
+                    break
+            
+            # Mark unsecured networks as OPEN
+            if is_open:
+                display_str += ' OPEN'
+            
             # Use the whole cleaned line as SSID for display
             ssid = display_str
-            security = ''
+            security = 'OPEN' if is_open else 'Secured'
             
             key = ssid + '|' + str(signal_num)
             if key in seen:
