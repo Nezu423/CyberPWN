@@ -46,6 +46,7 @@ _UNAUTH_API_PATHS = {
     '/api/sniffer/beacon',
     '/api/wardriving/raw',
     '/api/wardriving/reset',
+    '/api/nmap/scan',
 }
 
 _IFACE_RE: re.Pattern[str] = re.compile(r'^[a-zA-Z0-9_.:-]{1,20}$')
@@ -1356,6 +1357,186 @@ def api_url_sniffer_urls() -> Response:
                 })
         
         return jsonify({'ok': True, 'base': base, 'results': results})
+    except Exception as e:
+        return jsonify({'ok': False, 'error': str(e)}), 500
+
+
+@app.route('/api/nmap/scan', methods=['POST'])
+def api_nmap_scan() -> Response:
+    """Nmap scan for smart home devices and vulnerable ports."""
+    try:
+        data = request.get_json(force=True, silent=True) or {}
+        target = (data.get('target') or '').strip()
+        scan_type = data.get('scan_type', 'smart_home')  # smart_home, quick, comprehensive
+        
+        if not target:
+            return jsonify({'ok': False, 'error': 'Target IP or range required'}), 400
+        
+        # Common smart home device ports and vulnerable ports
+        smart_home_ports = [
+            22,    # SSH
+            23,    # Telnet
+            53,    # DNS
+            80,    # HTTP
+            443,   # HTTPS
+            1883,  # MQTT
+            5353,  # mDNS
+            8443,  # Alt HTTPS
+            8080,  # Alt HTTP
+            5000,  # UPnP
+            49152, # UPnP
+            50200, # UPnP
+            54321, # UPnP
+            5357,  # WSD
+            1900,  # SSDP
+            554,   # RTSP
+            8009,  # Alt HTTP
+            8081,  # Alt HTTP
+            8123,  # Alt HTTP
+            9000,  # Sonos
+            8090,  # Sonos
+            5355,  # Chromecast
+        ]
+        
+        vulnerable_ports = [
+            21,    # FTP
+            23,    # Telnet
+            25,    # SMTP
+            53,    # DNS
+            135,   # RPC
+            139,   # NetBIOS
+            445,   # SMB
+            1433,  # MSSQL
+            1521,  # Oracle
+            2049,  # NFS
+            3306,  # MySQL
+            3389,  # RDP
+            5432,  # PostgreSQL
+            5900,  # VNC
+            6379,  # Redis
+            8080,  # Alt HTTP
+            8443,  # Alt HTTPS
+            9200,  # Elasticsearch
+            11211, # Memcached
+            27017, # MongoDB
+        ]
+        
+        # Select ports based on scan type
+        if scan_type == 'smart_home':
+            ports = smart_home_ports
+        elif scan_type == 'vulnerable':
+            ports = vulnerable_ports
+        else:  # comprehensive
+            ports = list(set(smart_home_ports + vulnerable_ports))
+        
+        # Build nmap command
+        cmd = f"nmap -p {','.join(map(str, ports))} -T4 --open --max-retries 1 {target}"
+        
+        # Run nmap
+        result = run_capture(cmd, timeout=60)
+        
+        if result.get('returncode') != 0:
+            return jsonify({
+                'ok': False, 
+                'error': 'Nmap scan failed',
+                'stderr': result.get('stderr', ''),
+                'stdout': result.get('stdout', '')
+            })
+        
+        # Parse nmap output
+        lines = result.get('stdout', '').splitlines()
+        open_ports = []
+        services = {}
+        current_host = target
+        
+        for line in lines:
+            line = line.strip()
+            if line.startswith('Nmap scan report for'):
+                current_host = line.split()[-1]
+                continue
+            elif '/tcp' in line and 'open' in line:
+                # Parse port line: "80/tcp open  http"
+                parts = line.split()
+                if len(parts) >= 3:
+                    port = parts[0].split('/')[0]
+                    state = parts[1]
+                    service = parts[2]
+                    
+                    open_ports.append({
+                        'port': int(port),
+                        'protocol': 'tcp',
+                        'state': state,
+                        'service': service,
+                        'host': current_host
+                    })
+                    
+                    # Check for smart home devices
+                    device_type = 'Unknown'
+                    if port in ['1883', '5353', '1900', '49152', '50200', '54321']:
+                        device_type = 'IoT/Smart Home'
+                    elif port in ['80', '443', '8080', '8443']:
+                        device_type = 'Web Server'
+                    elif port in ['22', '23']:
+                        device_type = 'Remote Access'
+                    elif port in ['554']:
+                        device_type = 'Camera/RTSP'
+                    elif port in ['9000', '8090']:
+                        device_type = 'Speaker/Audio'
+                    elif port in ['5355']:
+                        device_type = 'Chromecast/Display'
+                    
+                    if current_host not in services:
+                        services[current_host] = []
+                    
+                    services[current_host].append({
+                        'port': int(port),
+                        'service': service,
+                        'type': device_type,
+                        'vulnerable': port in vulnerable_ports
+                    })
+        
+        # Identify potential smart home devices
+        smart_home_devices = []
+        for host, port_list in services.items():
+            device_indicators = 0
+            device_type = 'Unknown'
+            
+            for port_info in port_list:
+                if port_info['port'] in [1883, 5353, 1900, 49152, 50200, 54321]:
+                    device_indicators += 2
+                elif port_info['port'] in [80, 443, 8080, 8443]:
+                    device_indicators += 1
+                elif port_info['port'] in [554]:
+                    device_indicators += 2
+                    device_type = 'Camera'
+                elif port_info['port'] in [9000, 8090]:
+                    device_indicators += 2
+                    device_type = 'Speaker'
+                elif port_info['port'] in [5355]:
+                    device_indicators += 2
+                    device_type = 'Display'
+            
+            if device_indicators >= 2:
+                smart_home_devices.append({
+                    'host': host,
+                    'type': device_type or 'Smart Home Device',
+                    'ports': port_list,
+                    'confidence': min(device_indicators * 20, 100)
+                })
+        
+        return jsonify({
+            'ok': True,
+            'target': target,
+            'scan_type': scan_type,
+            'open_ports': open_ports,
+            'services': services,
+            'smart_home_devices': smart_home_devices,
+            'total_open_ports': len(open_ports),
+            'vulnerable_ports': [p for p in open_ports if p['port'] in vulnerable_ports],
+            'scan_output': result.get('stdout', ''),
+            'timestamp': time.strftime('%Y-%m-%d %H:%M:%S')
+        })
+        
     except Exception as e:
         return jsonify({'ok': False, 'error': str(e)}), 500
 

@@ -1,0 +1,168 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>Nmap Scanner</title>
+<style>
+*{box-sizing:border-box}
+html,body{
+  height:100%;
+  width:100%;
+  margin:0;
+  padding:0;
+  background:#000;
+  color:#fff;
+  font-family: Arial, Helvetica, sans-serif;
+  overflow-y:auto;
+}
+body{padding:10px 8px 16px;}
+a{color:#fff !important;text-decoration:none;}
+a:visited{color:#fff !important;}
+.h{position:relative;border-bottom:1px solid #FF00C8;padding-bottom:8px;margin-bottom:10px;}
+.t{display:block;padding-right:88px;color:#fff;font-size:12px;font-weight:bold;letter-spacing:1px;}
+.back{position:absolute;right:0;top:0;color:#fff;text-decoration:none;border:1px solid #FF00C8;padding:3px 6px;font-size:10px;background:transparent;}
+.back:focus{background:#FF00C8;color:#000;}
+.card{border:1px solid #FF00C8;background:#000;padding:10px 8px;margin-bottom:10px;}
+.st{font-size:12px;font-weight:bold;margin-bottom:6px;color:#fff;}
+.ok{color:#fff;}
+.warn{color:#fff;}
+.bad{color:#fff;}
+.dim{color:#bbb;}
+.btn{display:block;width:100%;margin-top:6px;padding:10px 8px;background:#000;color:#fff;border:1px solid #FF00C8;font-size:12px;font-weight:bold;cursor:pointer;}
+.btn:focus,.btn:hover{background:#FF00C8;color:#000;}
+.btn2{border-color:#FF69B4;color:#fff;}
+.btn2:focus,.btn2:hover{background:#FF69B4;color:#000;border-color:#FF69B4;}
+.btn3{border-color:#C71585;color:#fff;}
+.btn3:focus,.btn3:hover{background:#C71585;color:#000;border-color:#C71585;}
+.btn4{border-color:#DA70D6;color:#fff;}
+.btn4:focus,.btn4:hover{background:#DA70D6;color:#000;border-color:#DA70D6;}
+.log{background:#000;border:1px solid #FF00C8;color:#fff;font-size:11px;padding:8px;white-space:pre-wrap;}
+.lbl{font-size:11px;color:#fff;margin:6px 0 2px 0;}
+.in{width:100%;padding:6px;background:#000;color:#fff;border:1px solid #FF00C8;font-size:11px;outline:none;}
+.in:focus{border-color:#FF69B4;}
+.open{color:#00ff5a;}
+.closed{color:#ff3c00;}
+.timeout{color:#ffd600;}
+.device{color:#00FFE7;}
+.vulnerable{color:#FF69B4;}
+</style>
+</head>
+<body>
+<div class="h">
+  <div class="t">NMAP SCANNER</div>
+  <a class="back" href="success.html">&lt; DASH</a>
+</div>
+
+<div class="card">
+  <div class="st">Smart Home Device Scanner</div>
+  <div class="lbl">Target IP or Range:</div>
+  <input id="target" class="in" type="text" value="192.168.1.1" />
+  
+  <div class="lbl">Scan Type:</div>
+  <select id="scanType" class="in">
+    <option value="smart_home">Smart Home Devices</option>
+    <option value="vulnerable">Vulnerable Ports Only</option>
+    <option value="comprehensive">Comprehensive Scan</option>
+  </select>
+  
+  <button class="btn" type="button" onclick="startScan()">START NMAP SCAN</button>
+  <div id="result" class="log">Enter target IP and select scan type to begin...</div>
+</div>
+
+<script>
+function _e(s){return (s===null||s===undefined)?'':String(s);}
+function setLog(t){document.getElementById('result').innerHTML=t;}
+
+function apiJson(method, url, data, callback) {
+  var xhr = new XMLHttpRequest();
+  xhr.open(method, url, true);
+  xhr.setRequestHeader('Content-Type','application/json');
+  xhr.timeout=120000; // 2 minutes timeout for nmap
+  xhr.onreadystatechange=function(){
+    if(xhr.readyState!==4)return;
+    if(xhr.status<200||xhr.status>=300){
+      var msg='HTTP '+xhr.status;
+      try{var d=JSON.parse(xhr.responseText);if(d&&d.error)msg=d.error;}catch(e){}
+      setLog('Error: '+msg);
+      return;
+    }
+    try{callback(null, JSON.parse(xhr.responseText));}
+    catch(e){callback('Parse error', null);}
+  };
+  xhr.ontimeout=function(){setLog('Error: TIMEOUT');};
+  xhr.onerror=function(){setLog('Error: NETWORK ERROR');};
+  xhr.send(JSON.stringify(data));
+}
+
+function startScan(){
+  var target=document.getElementById('target').value;
+  var scanType=document.getElementById('scanType').value;
+  if(!target){setLog('Error: Target IP required');return;}
+  
+  setLog('Starting Nmap scan...\nTarget: '+target+'\nType: '+scanType+'\nThis may take 1-2 minutes...');
+  
+  apiJson('POST','/api/nmap/scan', {
+    target: target,
+    scan_type: scanType
+  }, function(err, data){
+    if(err){
+      setLog('Error: '+err);
+      return;
+    }
+    
+    if(!data||!data.ok){
+      setLog('Error: '+_e(data&&data.error?data.error:'Unknown'));
+      return;
+    }
+    
+    var output='=== Nmap Results ===\n';
+    output+='Target: '+_e(data.target)+'\n';
+    output+='Scan Type: '+_e(data.scan_type)+'\n';
+    output+='Timestamp: '+_e(data.timestamp)+'\n';
+    output+='Total Open Ports: '+_e(data.total_open_ports)+'\n\n';
+    
+    // Smart Home Devices
+    if(data.smart_home_devices && data.smart_home_devices.length>0){
+      output+='=== SMART HOME DEVICES ===\n';
+      for(var i=0;i<data.smart_home_devices.length;i++){
+        var device=data.smart_home_devices[i];
+        output+='<span class="device">Device: '+_e(device.type)+'</span>\n';
+        output+='  Host: '+_e(device.host)+'\n';
+        output+='  Confidence: '+_e(device.confidence)+'%\n';
+        output+='  Open Ports: ';
+        var ports=[];
+        for(var j=0;j<device.ports.length;j++){
+          ports.push(device.ports[j].port+'/'+device.ports[j].service);
+        }
+        output+=ports.join(', ')+'\n\n';
+      }
+    }
+    
+    // Vulnerable Ports
+    if(data.vulnerable_ports && data.vulnerable_ports.length>0){
+      output+='=== VULNERABLE PORTS ===\n';
+      for(var i=0;i<data.vulnerable_ports.length;i++){
+        var port=data.vulnerable_ports[i];
+        var cls="vulnerable";
+        output+='<span class="'+cls+'">'+port.port+'/'+port.service+'</span> on '+port.host+'\n';
+      }
+      output+='\n';
+    }
+    
+    // All Open Ports
+    if(data.open_ports && data.open_ports.length>0){
+      output+='=== ALL OPEN PORTS ===\n';
+      for(var i=0;i<data.open_ports.length;i++){
+        var port=data.open_ports[i];
+        var cls='open';
+        output+=port.port+'/'+port.service+' ('+port.host+')\n';
+      }
+    }
+    
+    setLog(output);
+  });
+}
+</script>
+</body>
+</html>
