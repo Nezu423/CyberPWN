@@ -29,14 +29,19 @@ echo "Scan interface available: $SCAN_IFACE"
 echo "SSID: $SSID (single client allowed)"
 echo "Website will be hosted at: http://$AP_IP:5000"
 
-# 1) Write hostapd config with single client limit
+# 1) Write hostapd config for BTT CB1
 cat > "$CONFIG" << EOF
-# Evil Twin AP - $SSID
+# Evil Twin AP - $SSID (BTT CB1)
 interface=$AP_IFACE
 driver=nl80211
 ssid=$SSID
 channel=6
 hw_mode=g
+ieee80211n=1
+wmm_enabled=0
+macaddr_acl=0
+auth_algs=1
+ignore_broadcast_ssid=0
 max_num_sta=1  # Single client limit
 EOF
 
@@ -47,7 +52,7 @@ wpa_key_mgmt=WPA-PSK
 rsn_pairwise=CCMP
 EOF
 
-# 2) Release interface from NetworkManager and reset properly
+# 2) Release interface from NetworkManager and reset properly (BTT CB1)
 echo "Releasing $AP_IFACE from NetworkManager..."
 nmcli dev set "$AP_IFACE" managed no 2>/dev/null || true
 nmcli device disconnect "$AP_IFACE" 2>/dev/null || true
@@ -59,8 +64,16 @@ pkill -f "dnsmasq.*$AP_IFACE" 2>/dev/null || true
 # Reset interface completely
 echo "Resetting $AP_IFACE..."
 ip link set "$AP_IFACE" down 2>/dev/null || true
-sleep 1
+sleep 2
 ip addr flush dev "$AP_IFACE" 2>/dev/null || true
+
+# Check if interface supports AP mode
+echo "Checking interface capabilities..."
+if ! iw phy "$AP_IFACE" info 2>/dev/null | grep -q "AP"; then
+    echo "WARNING: Interface may not support AP mode"
+fi
+
+# Set interface to managed mode first
 iwconfig "$AP_IFACE" mode managed 2>/dev/null || true
 sleep 1
 ip link set "$AP_IFACE" up 2>/dev/null || true
@@ -73,6 +86,8 @@ sleep 1
 # Verify interface is ready
 if ! ip addr show "$AP_IFACE" | grep -q "$AP_IP"; then
     echo "ERROR: Failed to configure $AP_IFACE with IP $AP_IP"
+    echo "Interface status:"
+    ip addr show "$AP_IFACE"
     exit 1
 fi
 
@@ -98,48 +113,51 @@ EOF
 pkill -f "dnsmasq.*$DNSMASQ_CONF" 2>/dev/null || true
 dnsmasq -C "$DNSMASQ_CONF" -q 2>/dev/null &
 
-# 4) hostapd in background with fallback driver
+# 4) hostapd in background for BTT CB1
 echo "Starting hostapd..."
 pkill -f "hostapd.*$CONFIG" 2>/dev/null || true
 sleep 2
 
-# Try with nl80211 driver first
-if ! timeout 10 hostapd -dd "$CONFIG" 2>&1 | grep -q "interface setup ok"; then
-    echo "nl80211 driver failed, trying alternative..."
+# Try to start hostapd directly with debug output
+echo "Testing hostapd configuration..."
+if timeout 5 hostapd -dd "$CONFIG" 2>&1 | head -20; then
+    echo "Configuration test passed"
+else
+    echo "Configuration test failed, trying simpler config..."
     
-    # Try with alternative driver
+    # Try minimal config for BTT CB1
     cat > "$CONFIG" << EOF
-# Evil Twin AP - $SSID (fallback driver)
+# Minimal AP config for BTT CB1
 interface=$AP_IFACE
-driver=rtl871xdrv
+driver=nl80211
 ssid=$SSID
 channel=6
 hw_mode=g
-max_num_sta=1  # Single client limit
-wpa=2
-wpa_passphrase=$AP_PASS
-wpa_key_mgmt=WPA-PSK
-rsn_pairwise=CCMP
+max_num_sta=1
 EOF
     
-    if ! timeout 10 hostapd -dd "$CONFIG" 2>&1 | grep -q "interface setup ok"; then
-        echo "ERROR: Failed to setup interface with any driver"
-        echo "Available drivers:"
-        hostapd --help 2>&1 | grep -A 10 "drivers:" || echo "Could not list drivers"
-        exit 1
-    fi
+    echo "Testing minimal configuration..."
+    timeout 5 hostapd -dd "$CONFIG" 2>&1 | head -10
 fi
 
 # Start hostapd in background
-hostapd -B -P "$HOSTAPD_PID" "$CONFIG" 2>/dev/null || {
-    echo "ERROR: Failed to start hostapd in background"
-    exit 1
-}
+echo "Starting hostapd in background..."
+if hostapd -B -P "$HOSTAPD_PID" "$CONFIG" 2>/dev/null; then
+    echo "hostapd started"
+else
+    echo "ERROR: Failed to start hostapd"
+    echo "Trying alternative method..."
+    hostapd "$CONFIG" > /tmp/hostapd.log 2>&1 &
+    HOSTAPD_PID=$!
+    echo $HOSTAPD_PID > "$HOSTAPD_PID"
+fi
 
 # Verify hostapd is running
 sleep 3
 if ! pgrep -f "hostapd.*$CONFIG" >/dev/null; then
     echo "ERROR: hostapd failed to start"
+    echo "Debug log:"
+    cat /tmp/hostapd.log 2>/dev/null || echo "No log file"
     exit 1
 fi
 
