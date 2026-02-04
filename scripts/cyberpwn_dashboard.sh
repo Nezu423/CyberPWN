@@ -226,10 +226,10 @@ show_processes() {
         echo -e "${GREEN}nmap (network scanning)${NC}"
     fi
     
-    # Check for WiFi interface (Armbian)
+    # Check for WiFi interface (Armbian) - use wlan1 for scanning
     if command -v iwconfig >/dev/null 2>&1; then
-        local wifi_iface=$(iwconfig 2>/dev/null | grep -E "^[a-zA-Z0-9]+" | awk '{print $1}' | head -1)
-        if [ -n "$wifi_iface" ]; then
+        local wifi_iface="wlan1"  # Fixed to wlan1 for scanning
+        if iwconfig "$wifi_iface" >/dev/null 2>&1; then
             local wifi_ssid=$(iwgetid "$wifi_iface" 2>/dev/null | awk -F '"' '{print $2}')
             local wifi_ip=$(ip addr show "$wifi_iface" 2>/dev/null | grep "inet " | awk '{print $2}' | cut -d/ -f1 | head -1)
             local wifi_signal=$(iwconfig "$wifi_iface" 2>/dev/null | awk -F= '/Signal level/ {print $3}' | awk '{print $1}' | head -1)
@@ -244,6 +244,8 @@ show_processes() {
             if [ -n "$wifi_signal" ]; then
                 echo -e "${CYAN}Signal: ${wifi_signal} dBm${NC}"
             fi
+        else
+            echo -e "${YELLOW}WiFi scan interface wlan1 not available${NC}"
         fi
     fi
     
@@ -331,8 +333,8 @@ except:
     
     # Get WiFi IP and ping server from WiFi interface
     if command -v iwconfig >/dev/null 2>&1; then
-        local wifi_iface=$(iwconfig 2>/dev/null | grep -E "^[a-zA-Z0-9]+" | awk '{print $1}' | head -1)
-        if [ -n "$wifi_iface" ]; then
+        local wifi_iface="wlan1"  # Use wlan1 for scanning
+        if iwconfig "$wifi_iface" >/dev/null 2>&1; then
             local wifi_ip=$(ip addr show "$wifi_iface" 2>/dev/null | grep "inet " | awk '{print $2}' | cut -d/ -f1 | head -1)
             if [ -n "$wifi_ip" ] && [ "$wifi_ip" != "$server_ip" ]; then
                 echo ""

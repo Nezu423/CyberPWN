@@ -1573,11 +1573,11 @@ def api_wifi_connect() -> Response:
         if not ssid:
             return jsonify({'ok': False, 'error': 'SSID required'}), 400
         
-        # Try to connect using nmcli
+        # Try to connect using nmcli on wlan1
         if password:
-            cmd = f"nmcli device wifi connect '{ssid}' password '{password}'"
+            cmd = f"nmcli device wifi connect '{ssid}' ifname wlan1 password '{password}'"
         else:
-            cmd = f"nmcli device wifi connect '{ssid}'"
+            cmd = f"nmcli device wifi connect '{ssid}' ifname wlan1"
         
         result = run_capture(cmd, timeout=30)
         
@@ -1609,7 +1609,7 @@ def api_wifi_connect() -> Response:
 def api_wifi_disconnect() -> Response:
     """Disconnect from WiFi network."""
     try:
-        cmd = "nmcli device wifi disconnect"
+        cmd = "nmcli device wifi disconnect ifname wlan1"
         result = run_capture(cmd, timeout=10)
         
         if result.get('returncode') == 0:
