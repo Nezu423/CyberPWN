@@ -45,20 +45,34 @@ def parse_log_file(file_path):
                     print(f"  -> Found SSID in quotes: '{ssid}'")
                 elif 'should_be_open' in line:
                     # Extract SSID from should_be_open lines
-                    if 'ssid' in line:
-                        # Extract ssid from the line
-                        import re
-                        ssid_match = re.search(r'ssid["\']?\s*[:=]\s*["\']([^"\']+)["\']', line)
-                        if ssid_match:
-                            ssid = ssid_match.group(1)
-                            print(f"  -> Found SSID in should_be_open line: '{ssid}'")
+                    # Look for quoted SSID after should_be_open
+                    import re
+                    # Try multiple patterns for SSID extraction
+                    ssid_match = re.search(r'ssid["\']?\s*[:=]\s*["\']([^"\']+)["\']', line)
+                    if not ssid_match:
+                        # Try pattern: should_be_open true "SSID"
+                        ssid_match = re.search(r'should_be_open\s+\w+\s+["\']([^"\']+)["\']', line)
+                    if not ssid_match:
+                        # Try pattern: should_be_open true ssid "SSID"
+                        ssid_match = re.search(r'should_be_open\s+\w+\s+ssid\s+["\']([^"\']+)["\']', line)
+                    if not ssid_match:
+                        # Try pattern: should_be_open true ssid=SSID
+                        ssid_match = re.search(r'should_be_open\s+\w+\s+ssid["\']?\s*[:=]\s*["\']?([^"\']+)["\']?', line)
+                    
+                    if ssid_match:
+                        ssid = ssid_match.group(1)
+                        print(f"  -> Found SSID in should_be_open line: '{ssid}'")
                 else:
                     # Try to extract from any line that looks like a network name
-                    # Skip lines that are clearly not SSIDs
-                    if not any(char in line for char in ['{', '}', '[', ']', ',', ':', '=', '(', ')']) and len(line) > 2:
-                        if not line.isdigit() and not line.replace('-', '').replace('.', '').isdigit():
-                            ssid = line.strip('"\'')
-                            print(f"  -> Found SSID as plain text: '{ssid}'")
+                    # More permissive - just skip obvious non-SSIDs
+                    if len(line) > 1 and not line.isdigit():
+                        # Skip lines that are clearly not SSIDs
+                        skip_patterns = ['{', '}', '[', ']', '(', ')', 'http', 'www', '.com', '.net', '.org']
+                        if not any(pattern in line.lower() for pattern in skip_patterns):
+                            # Skip if it's just numbers, dots, and dashes
+                            if not re.match(r'^[\d\.\-]+$', line):
+                                ssid = line.strip('"\'')
+                                print(f"  -> Found SSID as plain text: '{ssid}'")
                 
                 if not ssid or len(ssid) < 2:
                     print(f"  -> No SSID found, skipping")
