@@ -1246,11 +1246,11 @@ def beacon_sniff():
         except Exception:
             pass
 
-        cmd = "nmcli -t --separator '|' -f SSID,SIGNAL,SECURITY dev wifi list"
+        cmd = "nmcli -t -f SSID,SIGNAL,SECURITY dev wifi list"
         rr = run_capture(cmd, timeout=12)
         last_err = {'stdout': rr.get('stdout', ''), 'stderr': rr.get('stderr', ''), 'cmd': cmd, 'rc': rr.get('returncode')}
         if rr.get('returncode') != 0:
-            cmd2 = "nmcli -t -f SSID,SIGNAL,SECURITY dev wifi list"
+            cmd2 = "nmcli -t --separator '|' -f SSID,SIGNAL,SECURITY dev wifi list"
             rr2 = run_capture(cmd2, timeout=12)
             last_err = {'stdout': rr2.get('stdout', ''), 'stderr': rr2.get('stderr', ''), 'cmd': cmd2, 'rc': rr2.get('returncode')}
             rr = rr2
@@ -1282,10 +1282,10 @@ def beacon_sniff():
                 sig_s = (parts[1] or '').strip() if len(parts) > 1 else ''
                 sec = (parts[2] or '').strip() if len(parts) > 2 else ''
             else:
-                parts = line.split(':')
+                parts = line.split()
                 ssid = (parts[0] or '').strip() if len(parts) > 0 else ''
                 sig_s = (parts[1] or '').strip() if len(parts) > 1 else ''
-                sec = (':'.join(parts[2:]) or '').strip() if len(parts) > 2 else ''
+                sec = (' '.join(parts[2:]) or '').strip() if len(parts) > 2 else ''
 
             sig_i = None
             try:
