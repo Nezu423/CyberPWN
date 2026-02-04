@@ -1160,17 +1160,32 @@ def channel_analyzer():
 # --- Sniffer API Routes ---
 @app.route('/api/wardriving/raw', methods=['POST'])
 def api_wardriving_raw():
-    """Return raw nmcli output for wardriving."""
+    """Return raw nmcli output for wardriving and log to file."""
     try:
         # Run nmcli dev wifi list and return raw output
         cmd = "nmcli dev wifi list"
         result = run_capture(cmd, timeout=12)
         
+        # Create logs directory if it doesn't exist
+        logs_dir = os.path.join(base_dir, 'CyberPWN', 'logs')
+        os.makedirs(logs_dir, exist_ok=True)
+        
+        # Create log file with current date
+        log_file = os.path.join(logs_dir, f"wardriving_{time.strftime('%Y-%m-%d')}.log")
+        
+        # Write to log file with timestamp
+        timestamp = time.strftime('%Y-%m-%d %H:%M:%S')
+        with open(log_file, 'a') as f:
+            f.write(f"\n=== Wardriving Scan - {timestamp} ===\n")
+            f.write(result.get('stdout', ''))
+            f.write("\n")
+        
         return jsonify({
             'ok': True,
             'raw_output': result.get('stdout', ''),
             'stderr': result.get('stderr', ''),
-            'timestamp': time.strftime('%Y-%m-%d %H:%M:%S')
+            'timestamp': timestamp,
+            'log_file': log_file
         })
     except Exception as e:
         return jsonify({'ok': False, 'error': str(e)}), 500
