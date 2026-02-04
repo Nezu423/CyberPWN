@@ -17,25 +17,28 @@ html,body{
   overflow-y:auto;
 }
 body{padding:10px 8px 16px;}
-a{color:#FFD600 !important;text-decoration:none;}
-a:visited{color:#FFD600 !important;}
-.h{position:relative;border-bottom:1px solid #202020;padding-bottom:8px;margin-bottom:10px;}
-.t{display:block;padding-right:88px;color:#00FFE7;font-size:12px;font-weight:bold;letter-spacing:1px;}
-.back{position:absolute;right:0;top:0;color:#00FFE7;text-decoration:none;border:1px solid #00FFE7;padding:3px 6px;font-size:10px;background:transparent;}
-.back:focus{background:#00FFE7;color:#000;}
-.card{border:1px solid #202020;background:#000;padding:10px 8px;margin-bottom:10px;}
-.st{font-size:12px;font-weight:bold;margin-bottom:6px;}
-.ok{color:#00FF5A;}
-.warn{color:#FFD600;}
-.bad{color:#FF3C00;}
+a{color:#fff !important;text-decoration:none;}
+a:visited{color:#fff !important;}
+.h{position:relative;border-bottom:1px solid #FF00C8;padding-bottom:8px;margin-bottom:10px;}
+.t{display:block;padding-right:88px;color:#fff;font-size:12px;font-weight:bold;letter-spacing:1px;}
+.back{position:absolute;right:0;top:0;color:#fff;text-decoration:none;border:1px solid #FF00C8;padding:3px 6px;font-size:10px;background:transparent;}
+.back:focus{background:#FF00C8;color:#000;}
+.card{border:1px solid #FF00C8;background:#000;padding:10px 8px;margin-bottom:10px;}
+.st{font-size:12px;font-weight:bold;margin-bottom:6px;color:#fff;}
+.ok{color:#fff;}
+.warn{color:#fff;}
+.bad{color:#fff;}
 .dim{color:#bbb;}
-.btn{display:block;width:100%;margin-top:6px;padding:10px 8px;background:#000;color:#00FFE7;border:1px solid #00FFE7;font-size:12px;font-weight:bold;cursor:pointer;}
-.btn:focus,.btn:hover{background:#00FFE7;color:#000;}
-.btn2{border-color:#FFD600;color:#FFD600;}
-.btn2:focus,.btn2:hover{background:#FFD600;color:#000;border-color:#FFD600;}
-.btn3{border-color:#FF3C00;color:#FF3C00;}
-.btn3:focus,.btn3:hover{background:#FF3C00;color:#000;border-color:#FF3C00;}
-.log{background:#000;border:1px solid #202020;color:#fff;font-size:11px;padding:8px;white-space:pre-wrap;}
+.btn{display:block;width:100%;margin-top:6px;padding:10px 8px;background:#000;color:#fff;border:1px solid #FF00C8;font-size:12px;font-weight:bold;cursor:pointer;}
+.btn:focus,.btn:hover{background:#FF00C8;color:#000;}
+.btn2{border-color:#FF69B4;color:#fff;}
+.btn2:focus,.btn2:hover{background:#FF69B4;color:#000;border-color:#FF69B4;}
+.btn3{border-color:#C71585;color:#fff;}
+.btn3:focus,.btn3:hover{background:#C71585;color:#000;border-color:#C71585;}
+.btn4{border-color:#DA70D6;color:#fff;}
+.btn4:focus,.btn4:hover{background:#DA70D6;color:#000;border-color:#DA70D6;}
+.log{background:#000;border:1px solid #FF00C8;color:#fff;font-size:11px;padding:8px;white-space:pre-wrap;}
+.ks-active{color:#fff;font-weight:bold;}
 </style>
 </head>
 <body>
@@ -47,6 +50,14 @@ a:visited{color:#FFD600 !important;}
 <div class="card">
   <div id="status" class="st dim">Loading...</div>
   <div id="details" class="log">...</div>
+</div>
+
+<div class="card">
+  <div class="st">Kill-Switch Status</div>
+  <div id="ks-status" class="log">Checking...</div>
+  <button class="btn btn4" type="button" onclick="toggleKsAuto()">AUTO ON ALERT: <span id="ks-auto-text">OFF</span></button>
+  <button class="btn btn3" type="button" onclick="ksEnable()">ENABLE NOW</button>
+  <button class="btn" type="button" onclick="ksDisable()">DISABLE</button>
 </div>
 
 <div class="card">
@@ -115,6 +126,73 @@ function render(d){
   setText('details', out);
 }
 
+var _watchTimer=null;
+var _watchInFlight=false;
+var _watchEverAlert=false;
+var _watchLastReason='';
+var _watchLastSeen='';
+var _ksAuto=false;
+
+function setMainAlert(reason){
+  _watchEverAlert=true;
+  _watchLastReason=reason||'ARP anomaly';
+  setText('status','STATUS: <span class="bad">ALERT</span>');
+}
+
+function updateKsStatus(){
+  api('POST','/api/killswitch', {action:'status'}, function(err,d){
+    if(err || !d || !d.ok){
+      setText('ks-status', 'Error checking kill-switch');
+      return;
+    }
+    var txt='Kill-switch: ';
+    if(d.v4_applied || d.v6_applied){
+      txt+='<span class="ks-active">ACTIVE</span>\n';
+    } else {
+      txt+='INACTIVE\n';
+    }
+    txt+='Auto on alert: '+ (d.auto ? 'ON' : 'OFF') +'\n';
+    txt+='v4: '+ (d.v4_applied ? 'applied' : 'not applied') +'\n';
+    txt+='v6: '+ (d.v6_applied ? 'applied' : 'not applied');
+    setText('ks-status', txt);
+    _ksAuto = d.auto || false;
+    setText('ks-auto-text', _ksAuto ? 'ON' : 'OFF');
+  });
+}
+
+function toggleKsAuto(){
+  var newAuto = !_ksAuto;
+  api('POST','/api/killswitch', {action:'set_auto', auto:newAuto}, function(err,d){
+    if(err || !d || !d.ok){
+      alert('Failed to set auto mode');
+      return;
+    }
+    _ksAuto = d.auto;
+    setText('ks-auto-text', _ksAuto ? 'ON' : 'OFF');
+    updateKsStatus();
+  });
+}
+
+function ksEnable(){
+  api('POST','/api/killswitch', {action:'enable'}, function(err,d){
+    if(err || !d || !d.ok){
+      alert('Failed to enable kill-switch: '+_e(err || (d && d.error)));
+      return;
+    }
+    updateKsStatus();
+  });
+}
+
+function ksDisable(){
+  api('POST','/api/killswitch', {action:'disable'}, function(err,d){
+    if(err || !d || !d.ok){
+      alert('Failed to disable kill-switch: '+_e(err || (d && d.error)));
+      return;
+    }
+    updateKsStatus();
+  });
+}
+
 function refresh(){
   setText('status','Loading...');
   api('GET','/api/arp_spoof/status',null,function(err,d){
@@ -128,13 +206,21 @@ function refresh(){
       setText('details', _e(d && d.error ? d.error : 'Unknown error'));
       return;
     }
-    render(d);
+    if(_watchEverAlert){
+      setMainAlert(_watchLastReason);
+    } else {
+      render(d);
+    }
   });
+  updateKsStatus();
 }
 
 function watchOnce(){
+  if(_watchInFlight) return;
+  _watchInFlight=true;
   setText('watch','Watching ARP...');
   api('GET','/api/arp_spoof/watch?seconds=3',null,function(err,d){
+    _watchInFlight=false;
     if(err){
       setText('watch','Error: '+_e(err));
       return;
@@ -145,9 +231,15 @@ function watchOnce(){
     }
     var out='GW: '+_e(d.gateway_ip)+'\n';
     out+='BASE: '+_e(d.baseline_mac || 'NONE')+'\n';
-    out+='SEEN: '+_e((d.seen_macs||[]).join(', ') || 'NONE')+'\n';
+    var seen = (d.seen_macs||[]).join(', ') || 'NONE';
+    _watchLastSeen = seen;
+    out+='SEEN: '+_e(seen)+'\n';
     if(d.alert){
       out+='\nALERT: '+_e(d.reason || 'ARP anomaly');
+      setMainAlert(d.reason || 'ARP anomaly');
+      if(d.ks_applied){
+        out+='\n\nKILL-SWITCH APPLIED';
+      }
     } else {
       out+='\nOK: no anomaly observed in this window';
     }
@@ -158,7 +250,39 @@ function watchOnce(){
       out+='\n\nERR:\n'+_e(d.stderr.join('\n'));
     }
     setText('watch', out);
+    if(d.ks_applied){
+      updateKsStatus();
+    }
   });
+}
+
+function startWatch(){
+  if(_watchTimer) return;
+  watchOnce();
+  _watchTimer=setInterval(function(){
+    if(document.hidden) return;
+    watchOnce();
+  }, 3500);
+}
+
+function stopWatch(){
+  if(_watchTimer){
+    clearInterval(_watchTimer);
+    _watchTimer=null;
+  }
+}
+
+function onVis(){
+  if(document.hidden) stopWatch();
+  else startWatch();
+}
+
+if(typeof document.addEventListener === 'function'){
+  document.addEventListener('visibilitychange', onVis, false);
+}
+if(typeof window.addEventListener === 'function'){
+  window.addEventListener('beforeunload', stopWatch, false);
+  window.addEventListener('pagehide', stopWatch, false);
 }
 
 function setBaseline(){
@@ -177,6 +301,7 @@ function clearBaseline(){
 
 setInterval(refresh, 4000);
 refresh();
+startWatch();
 </script>
 </body>
 </html>

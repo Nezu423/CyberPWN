@@ -25,6 +25,13 @@ try:
 except Exception:
     _ARP_BASELINE_PATH = os.path.join('/tmp', 'cyberpwn_arp_baseline.json')
 
+_KILLSWITCH_PATH = os.path.join(base_dir, 'killswitch.json')
+try:
+    if not os.access(base_dir, os.W_OK):
+        _KILLSWITCH_PATH = os.path.join('/tmp', 'cyberpwn_killswitch.json')
+except Exception:
+    _KILLSWITCH_PATH = os.path.join('/tmp', 'cyberpwn_killswitch.json')
+
 app.secret_key = hashlib.sha256((base_dir + ":" + "cyberpwn").encode()).hexdigest()
 app.config.update(
     SESSION_COOKIE_HTTPONLY=True,
@@ -251,6 +258,156 @@ def _arp_baseline_write(data: dict) -> tuple[bool, str]:
         return True, ''
     except Exception as e:
         return False, str(e)
+
+
+def _ks_read() -> dict:
+    try:
+        if not os.path.exists(_KILLSWITCH_PATH):
+            return {}
+        with open(_KILLSWITCH_PATH, 'r', encoding='utf-8') as f:
+            data = json.load(f)
+            return data if isinstance(data, dict) else {}
+    except Exception:
+        return {}
+
+
+def _ks_write(data: dict) -> tuple[bool, str]:
+    try:
+        tmp = _KILLSWITCH_PATH + '.tmp'
+        with open(tmp, 'w', encoding='utf-8') as f:
+            json.dump(data, f)
+        os.replace(tmp, _KILLSWITCH_PATH)
+        return True, ''
+    except Exception as e:
+        return False, str(e)
+
+
+def _ks_chain_v4() -> str:
+    return 'CYBERPWN_KS'
+
+
+def _ks_chain_v6() -> str:
+    return 'CYBERPWN6_KS'
+
+
+def _ks_applied_v4() -> bool:
+    ch = _ks_chain_v4()
+    r = run_capture(f"sudo iptables -C OUTPUT -j {ch} 2>/dev/null", timeout=3)
+    return bool(r.get('returncode') == 0)
+
+
+def _ks_applied_v6() -> bool:
+    ch = _ks_chain_v6()
+    r = run_capture(f"sudo ip6tables -C OUTPUT -j {ch} 2>/dev/null", timeout=3)
+    return bool(r.get('returncode') == 0)
+
+
+def _ks_apply_v4() -> tuple[bool, str]:
+    ch = _ks_chain_v4()
+    run_capture(f"sudo iptables -N {ch} 2>/dev/null", timeout=3)
+    run_capture(f"sudo iptables -F {ch} 2>/dev/null", timeout=3)
+
+    allow = [
+        '127.0.0.0/8',
+        '10.0.0.0/8',
+        '172.16.0.0/12',
+        '192.168.0.0/16',
+        '169.254.0.0/16',
+        '224.0.0.0/4',
+    ]
+    for cidr in allow:
+        run_capture(f"sudo iptables -A {ch} -d {cidr} -j RETURN 2>/dev/null", timeout=3)
+    run_capture(f"sudo iptables -A {ch} -j DROP 2>/dev/null", timeout=3)
+
+    if not _ks_applied_v4():
+        r = run_capture(f"sudo iptables -I OUTPUT 1 -j {ch} 2>/dev/null", timeout=3)
+        if r.get('returncode') != 0:
+            return False, (r.get('stderr') or r.get('stdout') or 'iptables insert failed')
+    return True, ''
+
+
+def _ks_apply_v6() -> tuple[bool, str]:
+    ch = _ks_chain_v6()
+    run_capture(f"sudo ip6tables -N {ch} 2>/dev/null", timeout=3)
+    run_capture(f"sudo ip6tables -F {ch} 2>/dev/null", timeout=3)
+
+    allow = [
+        '::1/128',
+        'fe80::/10',
+        'fc00::/7',
+    ]
+    for cidr in allow:
+        run_capture(f"sudo ip6tables -A {ch} -d {cidr} -j RETURN 2>/dev/null", timeout=3)
+    run_capture(f"sudo ip6tables -A {ch} -j DROP 2>/dev/null", timeout=3)
+
+    if not _ks_applied_v6():
+        r = run_capture(f"sudo ip6tables -I OUTPUT 1 -j {ch} 2>/dev/null", timeout=3)
+        if r.get('returncode') != 0:
+            return False, (r.get('stderr') or r.get('stdout') or 'ip6tables insert failed')
+    return True, ''
+
+
+def _ks_apply() -> tuple[bool, dict]:
+    ok4, err4 = _ks_apply_v4()
+    ok6, err6 = _ks_apply_v6()
+    return bool(ok4 and ok6), {'v4_ok': ok4, 'v4_err': err4, 'v6_ok': ok6, 'v6_err': err6}
+
+
+def _ks_disable() -> tuple[bool, dict]:
+    ch4 = _ks_chain_v4()
+    ch6 = _ks_chain_v6()
+
+    run_capture(f"sudo iptables -D OUTPUT -j {ch4} 2>/dev/null", timeout=3)
+    run_capture(f"sudo iptables -F {ch4} 2>/dev/null", timeout=3)
+    run_capture(f"sudo iptables -X {ch4} 2>/dev/null", timeout=3)
+
+    run_capture(f"sudo ip6tables -D OUTPUT -j {ch6} 2>/dev/null", timeout=3)
+    run_capture(f"sudo ip6tables -F {ch6} 2>/dev/null", timeout=3)
+    run_capture(f"sudo ip6tables -X {ch6} 2>/dev/null", timeout=3)
+
+    return True, {'v4_applied': _ks_applied_v4(), 'v6_applied': _ks_applied_v6()}
+
+
+@app.route('/api/killswitch', methods=['POST'])
+def api_killswitch() -> Response:
+    try:
+        data = request.get_json(force=True, silent=True) or {}
+        action = (data.get('action') or '').strip().lower()
+        if action not in ('enable', 'disable', 'status', 'set_auto'):
+            return jsonify({'ok': False, 'error': 'Invalid action'}), 400
+
+        if action == 'enable':
+            ok, err = _ks_apply()
+            if not ok:
+                return jsonify({'ok': False, 'error': err}), 500
+            _ks_write({'enabled': True, 'auto': _ks_read().get('auto', False)})
+            return jsonify({'ok': True, 'enabled': True})
+
+        if action == 'disable':
+            ok, err = _ks_disable()
+            if not ok:
+                return jsonify({'ok': False, 'error': err}), 500
+            _ks_write({'enabled': False, 'auto': _ks_read().get('auto', False)})
+            return jsonify({'ok': True, 'enabled': False})
+
+        if action == 'set_auto':
+            auto_val = data.get('auto')
+            auto = bool(auto_val) if isinstance(auto_val, bool) else (str(auto_val).lower() in ('true', '1', 'yes', 'on'))
+            current = _ks_read()
+            current['auto'] = auto
+            _ks_write(current)
+            return jsonify({'ok': True, 'auto': auto})
+
+        if action == 'status':
+            ks_data = _ks_read()
+            enabled = ks_data.get('enabled', False)
+            auto = ks_data.get('auto', False)
+            v4_applied = _ks_applied_v4()
+            v6_applied = _ks_applied_v6()
+            return jsonify({'ok': True, 'enabled': enabled, 'auto': auto, 'v4_applied': v4_applied, 'v6_applied': v6_applied})
+
+    except Exception as e:
+        return jsonify({'ok': False, 'error': str(e)}), 500
 
 
 @app.route('/api/url_sniffer', methods=['POST'])
@@ -828,6 +985,15 @@ def api_arp_spoof_watch() -> Response:
                 alert = True
                 reason = 'Observed multiple MACs claiming gateway IP'
 
+        ks_applied = False
+        ks_auto = False
+        if alert:
+            ks_data = _ks_read()
+            ks_auto = ks_data.get('auto', False)
+            if ks_auto and not _ks_applied_v4():
+                ok, _ = _ks_apply()
+                ks_applied = ok
+
         return jsonify({
             'ok': True,
             'gateway_ip': gw,
@@ -837,6 +1003,8 @@ def api_arp_spoof_watch() -> Response:
             'seen_macs': seen_macs,
             'alert': alert,
             'reason': reason,
+            'ks_auto': ks_auto,
+            'ks_applied': ks_applied,
             'sample': out[:20],
             'stderr': err[:20],
             'cmd': cmd,
@@ -850,12 +1018,34 @@ def api_arp_spoof_watch() -> Response:
 def beacon_sniff():
     """Capture and parse WiFi beacon frames to extract SSIDs."""
     try:
-        r = run_capture("nmcli -t --separator '|' -f SSID,BSSID,SIGNAL,CHAN,SECURITY dev wifi list 2>/dev/null", timeout=10)
-        if r.get('returncode') != 0:
-            r = run_capture("nmcli -t -f SSID,BSSID,SIGNAL,CHAN,SECURITY dev wifi list 2>/dev/null", timeout=10)
+        note = ''
+        last_err = {'stdout': '', 'stderr': ''}
 
-        if r.get('returncode') != 0:
-            return {'ok': False, 'error': 'nmcli scan failed', 'stdout': r.get('stdout', ''), 'stderr': r.get('stderr', '')}
+        cmds = [
+            "nmcli -t --separator '|' -f SSID,BSSID,SIGNAL,CHAN,SECURITY dev wifi list",
+            "nmcli -t -f SSID,BSSID,SIGNAL,CHAN,SECURITY dev wifi list",
+        ]
+        r = None
+        for cmd in cmds:
+            rr = run_capture(cmd, timeout=10)
+            last_err = {'stdout': rr.get('stdout', ''), 'stderr': rr.get('stderr', '')}
+            if rr.get('returncode') == 0 and (rr.get('stdout') or '').strip():
+                r = rr
+                note = 'Managed-mode scan'
+                break
+
+        has_bssid = True
+        if r is None:
+            has_bssid = False
+            rr = run_capture("nmcli -t -f SSID,SIGNAL,CHAN,SECURITY dev wifi list", timeout=10)
+            last_err = {'stdout': rr.get('stdout', ''), 'stderr': rr.get('stderr', '')}
+            if rr.get('returncode') != 0:
+                return {'ok': False, 'error': 'nmcli scan failed', 'stdout': rr.get('stdout', ''), 'stderr': rr.get('stderr', '')}
+            if not (rr.get('stdout') or '').strip():
+                return {'ok': False, 'error': 'nmcli returned no results', 'stdout': rr.get('stdout', ''), 'stderr': rr.get('stderr', '')}
+            r = rr
+            note = 'Managed-mode scan (no BSSID)'
+
         aps = []
         ssids = []
         seen_key = set()
@@ -873,33 +1063,46 @@ def beacon_sniff():
             chan = ''
             sec = ''
 
-            if '|' in line:
-                parts = line.split('|')
-                if len(parts) < 2:
+            if has_bssid:
+                if '|' in line:
+                    parts = line.split('|')
+                    if len(parts) < 2:
+                        continue
+                    ssid = (parts[0] or '').strip()
+                    bssid = (parts[1] or '').strip().lower()
+                    signal = (parts[2] or '').strip() if len(parts) > 2 else ''
+                    chan = (parts[3] or '').strip() if len(parts) > 3 else ''
+                    sec = (parts[4] or '').strip() if len(parts) > 4 else ''
+                    if len(parts) > 5:
+                        sec = ('|'.join(parts[4:]) or '').strip()
+                else:
+                    m = bssid_re.search(line)
+                    if not m:
+                        continue
+                    bssid = (m.group(1) or '').strip().lower()
+                    ssid = (line[:m.start()] or '').rstrip(':').strip()
+                    tail = (line[m.end():] or '')
+                    if tail.startswith(':'):
+                        tail = tail[1:]
+                    tail_parts = tail.split(':')
+                    signal = (tail_parts[0] or '').strip() if len(tail_parts) > 0 else ''
+                    chan = (tail_parts[1] or '').strip() if len(tail_parts) > 1 else ''
+                    sec = (':'.join(tail_parts[2:]) or '').strip() if len(tail_parts) > 2 else ''
+
+                if not re.match(r"^[0-9A-Fa-f]{2}(?::[0-9A-Fa-f]{2}){5}$", bssid or ''):
+                    continue
+            else:
+                if '|' in line:
+                    parts = line.split('|')
+                else:
+                    parts = line.split(':')
+                if len(parts) < 1:
                     continue
                 ssid = (parts[0] or '').strip()
-                bssid = (parts[1] or '').strip().lower()
-                signal = (parts[2] or '').strip() if len(parts) > 2 else ''
-                chan = (parts[3] or '').strip() if len(parts) > 3 else ''
-                sec = (parts[4] or '').strip() if len(parts) > 4 else ''
-                if len(parts) > 5:
-                    sec = ('|'.join(parts[4:]) or '').strip()
-            else:
-                m = bssid_re.search(line)
-                if not m:
-                    continue
-                bssid = (m.group(1) or '').strip().lower()
-                ssid = (line[:m.start()] or '').rstrip(':').strip()
-                tail = (line[m.end():] or '')
-                if tail.startswith(':'):
-                    tail = tail[1:]
-                tail_parts = tail.split(':')
-                signal = (tail_parts[0] or '').strip() if len(tail_parts) > 0 else ''
-                chan = (tail_parts[1] or '').strip() if len(tail_parts) > 1 else ''
-                sec = (':'.join(tail_parts[2:]) or '').strip() if len(tail_parts) > 2 else ''
-
-            if not re.match(r"^[0-9A-Fa-f]{2}(?::[0-9A-Fa-f]{2}){5}$", bssid or ''):
-                continue
+                signal = (parts[1] or '').strip() if len(parts) > 1 else ''
+                chan = (parts[2] or '').strip() if len(parts) > 2 else ''
+                sec = (':'.join(parts[3:]) or '').strip() if len(parts) > 3 else ''
+                bssid = None
 
             sig_i = None
             try:
@@ -914,7 +1117,7 @@ def beacon_sniff():
                     sig_i = 100
                 rssi = int((sig_i / 2) - 100)
 
-            key = bssid + '|' + (ssid or '')
+            key = (bssid or '') + '|' + (ssid or '')
             if key in seen_key:
                 continue
             seen_key.add(key)
@@ -927,17 +1130,29 @@ def beacon_sniff():
                 'channel': chan,
                 'security': sec,
             })
+
             if ssid and ssid not in ssids:
                 ssids.append(ssid)
             if len(aps) >= 20:
                 break
 
-        return {'ok': True, 'ssids': ssids, 'count': len(aps), 'aps': aps, 'note': 'Managed-mode scan'}
+        return {
+            'ok': True,
+            'ssids': ssids,
+            'count': len(aps),
+            'aps': aps,
+            'note': note,
+            'diag': {
+                'has_bssid': has_bssid,
+                'stderr': (last_err.get('stderr') or '')[:300],
+            }
+        }
     except Exception as e:
         return {
             'ok': False,
             'error': str(e),
             'cmd': cmd if 'cmd' in locals() else None,
+
             'stdout': result.get('stdout', '') if 'result' in locals() else '',
             'stderr': result.get('stderr', '') if 'result' in locals() else ''
         }
