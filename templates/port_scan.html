@@ -68,7 +68,7 @@ function scan(){
   if(!host){setLog('Error: host required');return;}
   setLog('Scanning '+host+'...');
   var x=new XMLHttpRequest();
-  x.open('POST','/api/port_audit',true);
+  x.open('POST','/api/port_scan',true);
   x.setRequestHeader('Content-Type','application/json');
   x.timeout=15000;
   x.onreadystatechange=function(){
@@ -82,8 +82,7 @@ function scan(){
     try{
       var d=JSON.parse(x.responseText);
       if(!d||!d.ok){setLog('Error: '+_e(d&&d.error));return;}
-      var out='Host: '+_e(d.host)+'\n';
-      out+='Resolved: '+_e(d.resolved?d.resolved.join(', '):'N/A')+'\n\n';
+      var out='Host: '+_e(d.host)+'\n\n';
       out+='Results:\n';
       var r=d.results||[];
       for(var i=0;i<r.length;i++){
@@ -91,7 +90,7 @@ function scan(){
         var cls='closed';
         if(p.state==='open')cls='open';
         else if(p.state==='timeout')cls='timeout';
-        out+=p.port+'/'+p.service+' ('+p.ip+') - <span class="'+cls+'">'+p.state.toUpperCase()+'</span>\n';
+        out+=p.port+'/'+p.service+' - <span class="'+cls+'">'+p.state.toUpperCase()+'</span>\n';
       }
       setLog(out);
     }catch(e){setLog('Error: '+e.message);}

@@ -103,28 +103,18 @@ function toggleWardriving() {
     // Start wardriving
     isRunning = true;
     btn.textContent = 'Stop Wardriving';
-    result.innerHTML = 'Authenticating...';
+    result.innerHTML = 'Starting wardriving...';
     
-    // Authenticate with API first
-    apiJson('POST', '/api/verify_pin', {pin: '062823'}, function(err, data) {
-      if (err || !data.ok) {
-        result.innerHTML = '<span style="color:#ff6b6b;">Authentication failed. Please check PIN.</span>';
-        isRunning = false;
-        btn.textContent = 'Start Wardriving';
-        return;
-      }
-      
-      // Reset log for new session
-      apiJson('POST', '/api/wardriving/reset', function(err, data) {
-        // Don't care about response, just reset the log
-      });
-      
-      // Get initial scan
-      updateWardriving();
-      
-      // Set up interval for continuous scanning
-      wardrivingInterval = setInterval(updateWardriving, 10000);
+    // Reset log for new session
+    apiJson('POST', '/api/wardriving/reset', function(err, data) {
+      // Don't care about response, just reset the log
     });
+    
+    // Get initial scan
+    updateWardriving();
+    
+    // Set up interval for continuous scanning
+    wardrivingInterval = setInterval(updateWardriving, 10000);
   }
 }
 

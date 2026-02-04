@@ -67,7 +67,7 @@ function scan(){
   if(!url){setLog('Error: URL required');return;}
   setLog('Scanning '+url+'...');
   var x=new XMLHttpRequest();
-  x.open('POST','/api/url_sniffer/scan',true);
+  x.open('POST','/api/url_sniffer/urls',true);
   x.setRequestHeader('Content-Type','application/json');
   x.timeout=15000;
   x.onreadystatechange=function(){
@@ -82,16 +82,14 @@ function scan(){
       var d=JSON.parse(x.responseText);
       if(!d||!d.ok){setLog('Error: '+_e(d&&d.error));return;}
       var out='Base: '+_e(d.base)+'\n';
-      out+='Resolved: '+_e(d.resolved?d.resolved.join(', '):'N/A')+'\n\n';
-      out+='Checked: '+_e(d.checked)+' paths\n';
-      out+='Found: '+_e(d.found)+' paths\n\n';
-      var f=d.found||[];
+      out+='Checked: '+_e(d.results?d.results.length:0)+' paths\n\n';
+      var f=d.results||[];
       for(var i=0;i<f.length;i++){
         var p=f[i];
         var cls='notfound';
         if(p.found)cls='found';
-        out+=p.path+' ('+p.url+') - <span class="'+cls+'">'+(p.found?'FOUND':'NOT FOUND')+'</span>\n';
-        if(p.location)out+='  -> Location: '+p.location+'\n';
+        out+=p.path+' - <span class="'+cls+'">'+(p.found?'FOUND':'NOT FOUND')+'</span>\n';
+        if(p.status)out+='  Status: '+p.status+'\n';
       }
       setLog(out);
     }catch(e){setLog('Error: '+e.message);}

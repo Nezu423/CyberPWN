@@ -46,18 +46,6 @@ _UNAUTH_API_PATHS = {
     '/api/sniffer/beacon',
     '/api/wardriving/raw',
     '/api/wardriving/reset',
-    '/api/network_info',
-    '/api/ping_gateway',
-    '/api/arp_spoof/status',
-    '/api/arp_spoof/baseline/set',
-    '/api/arp_spoof/baseline/clear',
-    '/api/arp_spoof/watch',
-    '/api/port_audit',
-    '/api/interfaces/status',
-    '/api/port_scan',
-    '/api/wifi/scan',
-    '/api/url_sniffer/urls',
-    '/api/sniffer/channel_analyzer',
 }
 
 _IFACE_RE: re.Pattern[str] = re.compile(r'^[a-zA-Z0-9_.:-]{1,20}$')
@@ -1280,6 +1268,92 @@ def sniffer_beacon() -> Response:
 def sniffer_channel_analyzer() -> Response:
     return jsonify(channel_analyzer())
 
+
+@app.route('/api/interfaces/status', methods=['POST'])
+def api_interfaces_status() -> Response:
+    """Get status of all network interfaces."""
+    try:
+        interfaces = get_all_interfaces()
+        return jsonify({'ok': True, 'interfaces': interfaces})
+    except Exception as e:
+        return jsonify({'ok': False, 'error': str(e)}), 500
+
+
+@app.route('/api/port_scan', methods=['POST'])
+def api_port_scan() -> Response:
+    """Simple port scan endpoint."""
+    try:
+        data = request.get_json(force=True, silent=True) or {}
+        host = (data.get('host') or '').strip()
+        if not host:
+            return jsonify({'ok': False, 'error': 'Host required'}), 400
+        
+        # Simple port scan for common ports
+        ports = [22, 23, 80, 443, 8080, 8443]
+        results = []
+        
+        for port in ports:
+            try:
+                sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+                sock.settimeout(1)
+                result = sock.connect_ex((host, port))
+                sock.close()
+                results.append({
+                    'port': port,
+                    'service': str(port),
+                    'state': 'open' if result == 0 else 'closed',
+                    'ip': host
+                })
+            except Exception:
+                results.append({
+                    'port': port,
+                    'service': str(port),
+                    'state': 'error',
+                    'ip': host
+                })
+        
+        return jsonify({'ok': True, 'host': host, 'results': results})
+    except Exception as e:
+        return jsonify({'ok': False, 'error': str(e)}), 500
+
+
+@app.route('/api/url_sniffer/urls', methods=['POST'])
+def api_url_sniffer_urls() -> Response:
+    """Simple URL sniffer endpoint."""
+    try:
+        data = request.get_json(force=True, silent=True) or {}
+        base = (data.get('base') or '').strip()
+        if not base:
+            return jsonify({'ok': False, 'error': 'Base URL required'}), 400
+        
+        # Simple path checking
+        paths = ['/admin', '/login', '/dashboard', '/api', '/test']
+        results = []
+        
+        for path in paths:
+            try:
+                url = base + path
+                # Simple HEAD request
+                req = urllib.request.Request(url)
+                req.get_method = 'HEAD'
+                with urllib.request.urlopen(req, timeout=5) as response:
+                    results.append({
+                        'path': path,
+                        'url': url,
+                        'status': response.getcode(),
+                        'found': 200 <= response.getcode() < 400
+                    })
+            except Exception:
+                results.append({
+                    'path': path,
+                    'url': url,
+                    'status': None,
+                    'found': False
+                })
+        
+        return jsonify({'ok': True, 'base': base, 'results': results})
+    except Exception as e:
+        return jsonify({'ok': False, 'error': str(e)}), 500
+
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=5000, debug=False)
- 
