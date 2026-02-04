@@ -1170,8 +1170,8 @@ def api_wardriving_raw():
         logs_dir = os.path.join(base_dir, 'CyberPWN', 'logs')
         os.makedirs(logs_dir, exist_ok=True)
         
-        # Create log file with current date
-        log_file = os.path.join(logs_dir, f"wardriving_{time.strftime('%Y-%m-%d')}.log")
+        # Create log file with current date and time
+        log_file = os.path.join(logs_dir, f"wardriving_{time.strftime('%Y-%m-%d_%H-%M-%S')}.log")
         
         # Write to log file with timestamp
         timestamp = time.strftime('%Y-%m-%d %H:%M:%S')
