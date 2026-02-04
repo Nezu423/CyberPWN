@@ -84,6 +84,12 @@
 <h2>Beacon Sniff Results</h2>
 <div class="result" id="result">Loading...</div>
 <script>
+function esc(str) {
+  return String(str).replace(/[&<>"']/g, function(s) {
+    return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[s];
+  });
+}
+
 function apiJson(method, url, cb) {
   var xhr = new XMLHttpRequest();
   xhr.open(method, url, true);
