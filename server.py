@@ -44,7 +44,7 @@ PIN_SHA256 = hashlib.sha256("062823".encode()).hexdigest()
 _UNAUTH_API_PATHS = {
     '/api/verify_pin',
     '/api/sniffer/beacon',
-    '/api/wardriving/scan',
+    '/api/wardriving/raw',
 }
 
 _IFACE_RE: re.Pattern[str] = re.compile(r'^[a-zA-Z0-9_.:-]{1,20}$')
@@ -1158,6 +1158,23 @@ def channel_analyzer():
 
 
 # --- Sniffer API Routes ---
+@app.route('/api/wardriving/raw', methods=['POST'])
+def api_wardriving_raw():
+    """Return raw nmcli output for wardriving."""
+    try:
+        # Run nmcli dev wifi list and return raw output
+        cmd = "nmcli dev wifi list"
+        result = run_capture(cmd, timeout=12)
+        
+        return jsonify({
+            'ok': True,
+            'raw_output': result.get('stdout', ''),
+            'stderr': result.get('stderr', ''),
+            'timestamp': time.strftime('%Y-%m-%d %H:%M:%S')
+        })
+    except Exception as e:
+        return jsonify({'ok': False, 'error': str(e)}), 500
+
 @app.route('/api/wardriving/scan', methods=['POST'])
 def api_wardriving_scan():
     """Wardriving scan with SSID filter and file logging."""

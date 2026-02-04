@@ -52,18 +52,16 @@ button {
 button:hover {
   box-shadow: 0 0 10px var(--accent);
 }
-input[type="text"] {
-  background: #111;
-  color: var(--fg);
-  border: 1px solid var(--border);
-  padding: 0.5rem;
-  font-family: inherit;
-  margin: 0.5rem;
-}
 #result {
   margin-top: 1rem;
   white-space: pre-wrap;
+  font-family: monospace;
   font-size: 0.9rem;
+  color: #00ff00;
+  background: #111;
+  padding: 1rem;
+  border: 1px solid var(--border);
+  border-radius: 4px;
 }
 </style>
 </head>
@@ -72,12 +70,7 @@ input[type="text"] {
 <a href="/success" class="dash">&lt; DASH</a>
 </div>
 <h1>Wardriving</h1>
-<div>
-  <input type="text" id="ssidFilter" placeholder="SSID filter (optional)">
-  <button onclick="startWardriving()">Start Wardriving</button>
-  <button onclick="stopWardriving()">Stop</button>
-  <button onclick="downloadLog()">Download Log</button>
-</div>
+<button id="toggleBtn" onclick="toggleWardriving()">Start Wardriving</button>
 <div id="result">Click Start to begin wardriving.</div>
 <script>
 function esc(str) {
@@ -86,10 +79,9 @@ function esc(str) {
   });
 }
 
-function apiJson(method, url, data, cb) {
+function apiJson(method, url, cb) {
   var xhr = new XMLHttpRequest();
   xhr.open(method, url, true);
-  xhr.setRequestHeader('Content-Type', 'application/json');
   xhr.onload = function() {
     if (xhr.status === 200) {
       try { cb(null, JSON.parse(xhr.responseText)); }
@@ -99,132 +91,56 @@ function apiJson(method, url, data, cb) {
     }
   };
   xhr.onerror = function() { cb(new Error('Network error'), null); };
-  xhr.send(JSON.stringify(data));
+  xhr.send();
 }
 
 var wardrivingInterval = null;
-var wardrivingLog = [];
+var isRunning = false;
 
-function startWardriving() {
-  if (wardrivingInterval) return;
+function toggleWardriving() {
+  var btn = document.getElementById('toggleBtn');
+  var result = document.getElementById('result');
   
-  var ssidFilter = document.getElementById('ssidFilter').value;
-  wardrivingLog = [];
-  
-  wardrivingInterval = setInterval(function() {
-    apiJson('POST', '/api/wardriving/scan', {ssid_filter: ssidFilter}, function(err, data) {
-      var html = '';
-      if (err) {
-        html = '<span style="color:#BF616A;">Error: ' + err + '</span>';
-        document.getElementById('result').innerHTML = html;
-        return;
-      }
-      
-      if (data && data.ok) {
-        var aps = data.aps || [];
-        
-        // Check for open networks
-        var openNetworks = [];
-        var i;
-        for (i = 0; i < aps.length; i++) {
-          var a = aps[i] || {};
-          var ssid = (a.ssid === null || a.ssid === undefined) ? '' : String(a.ssid);
-          var security = (a.security === null || a.security === undefined) ? '' : String(a.security);
-          if (security === 'OPEN' || security.toLowerCase() === 'open') {
-            var ssidName = ssid.replace(/\s+OPEN\s*$/i, '');
-            openNetworks.push(ssidName);
-          }
-        }
-        
-        // Show alert for open networks
-        if (openNetworks.length > 0) {
-          html += '<div style="background:#8B0000;border:1px solid #FF0000;padding:8px;margin-bottom:10px;border-radius:4px;">';
-          html += '<div style="color:#FF6B6B;font-weight:bold;">⚠ OPEN NETWORKS DETECTED:</div>';
-          html += '<div style="color:#FFA07A;font-size:0.9em;">' + esc(openNetworks.join(', ')) + '</div>';
-          html += '</div>';
-        }
-        
-        html += '<b>Networks Found: ' + (data.count || aps.length) + '</b><br>';
-        html += '<div style="margin-top:6px;font-family:monospace;">';
-        
-        if (!aps.length) {
-          html += '<span style="color:#FFD600;">No networks found.</span>';
-        } else {
-          for (i = 0; i < aps.length; i++) {
-            var a = aps[i] || {};
-            var ssid = (a.ssid === null || a.ssid === undefined) ? '' : String(a.ssid);
-            var signal = (a.signal === null || a.signal === undefined) ? 'N/A' : (String(a.signal) + '%');
-            var rssi = (a.rssi === null || a.rssi === undefined) ? 'N/A' : (String(a.rssi) + 'dBm');
-            var lat = (a.lat === null || a.lat === undefined) ? 'N/A' : a.lat;
-            var lon = (a.lon === null || a.lon === undefined) ? 'N/A' : a.lon;
-            
-            html += '<div style="margin:0.2rem 0;">';
-            html += '<div style="color:#FFD600;">' + esc(ssid) + '</div>';
-            html += '<div style="color:#888;font-size:0.9em;">';
-            html += 'Signal: ' + signal + ' (' + rssi + ') | ';
-            html += 'Location: ' + lat + ', ' + lon;
-            html += '</div>';
-            html += '</div>';
-            
-            // Add to log
-            wardrivingLog.push({
-              timestamp: new Date().toISOString(),
-              ssid: ssid,
-              signal: a.signal,
-              rssi: a.rssi,
-              security: a.security,
-              lat: lat,
-              lon: lon
-            });
-          }
-        }
-        html += '</div>';
-      } else {
-        html = '<span style="color:#BF616A;">Error: ' + ((data && data.error) ? data.error : 'Unknown') + '</span>';
-      }
-      document.getElementById('result').innerHTML = html;
-    });
-  }, 5000); // Scan every 5 seconds
-  
-  document.getElementById('result').innerHTML = 'Starting wardriving...';
-}
-
-function stopWardriving() {
-  if (wardrivingInterval) {
-    clearInterval(wardrivingInterval);
-    wardrivingInterval = null;
-    document.getElementById('result').innerHTML = 'Wardriving stopped.<br>Log contains ' + wardrivingLog.length + ' entries.';
+  if (isRunning) {
+    // Stop wardriving
+    if (wardrivingInterval) {
+      clearInterval(wardrivingInterval);
+      wardrivingInterval = null;
+    }
+    isRunning = false;
+    btn.textContent = 'Start Wardriving';
+    result.innerHTML = 'Wardriving stopped.';
+  } else {
+    // Start wardriving
+    isRunning = true;
+    btn.textContent = 'Stop Wardriving';
+    result.innerHTML = 'Starting wardriving...';
+    
+    // Get initial scan
+    updateWardriving();
+    
+    // Set up interval for continuous scanning
+    wardrivingInterval = setInterval(updateWardriving, 5000);
   }
 }
 
-function downloadLog() {
-  if (wardrivingLog.length === 0) {
-    alert('No data to download');
-    return;
-  }
-  
-  // Create CSV content
-  var csv = 'Timestamp,SSID,Signal (%),RSSI (dBm),Security,Latitude,Longitude\n';
-  wardrivingLog.forEach(function(entry) {
-    csv += entry.timestamp + ',';
-    csv += '"' + (entry.ssid || '').replace(/"/g, '""') + '",';
-    csv += (entry.signal || '') + ',';
-    csv += (entry.rssi || '') + ',';
-    csv += (entry.security || '') + ',';
-    csv += (entry.lat || '') + ',';
-    csv += (entry.lon || '') + '\n';
+function updateWardriving() {
+  apiJson('POST', '/api/wardriving/raw', function(err, data) {
+    var result = document.getElementById('result');
+    if (err) {
+      result.innerHTML = '<span style="color:#ff6b6b;">Error: ' + err + '</span>';
+      return;
+    }
+    
+    if (data && data.ok) {
+      var timestamp = new Date().toLocaleString();
+      var output = '=== Wardriving Scan - ' + timestamp + ' ===\n\n';
+      output += data.raw_output || 'No output';
+      result.innerHTML = esc(output);
+    } else {
+      result.innerHTML = '<span style="color:#ff6b6b;">Error: ' + ((data && data.error) ? data.error : 'Unknown') + '</span>';
+    }
   });
-  
-  // Create download link
-  var blob = new Blob([csv], { type: 'text/csv' });
-  var url = URL.createObjectURL(blob);
-  var a = document.createElement('a');
-  a.href = url;
-  a.download = 'wardriving_log_' + new Date().toISOString().slice(0,10) + '.csv';
-  document.body.appendChild(a);
-  a.click();
-  document.body.removeChild(a);
-  URL.revokeObjectURL(url);
 }
 </script>
 </body>
