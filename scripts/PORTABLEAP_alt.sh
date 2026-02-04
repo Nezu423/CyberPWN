@@ -103,29 +103,64 @@ sleep 3
 if pgrep -f "hostapd.*minimal_ap.conf" >/dev/null; then
     echo -e "${GREEN}Basic AP started with WPA2${NC}"
     
-    # Set IP address
+    # Set IP address first
     ip addr add "$AP_IP/24" dev "$AP_IFACE" 2>/dev/null
+    sleep 1
     
     # Start dnsmasq with proper DHCP
     echo -e "${YELLOW}Starting DHCP server...${NC}"
-    dnsmasq --interface="$AP_IFACE" \
-        --bind-interfaces \
-        --dhcp-range=192.168.4.100,192.168.4.100,255.255.255.0,12h \
-        --dhcp-option=3,$AP_IP \
-        --dhcp-option=6,$AP_IP \
-        --address=/#/$AP_IP \
-        --no-resolv \
-        --server=8.8.8.8 \
-        --domain-needed \
-        --bogus-priv \
-        --daemon 2>/dev/null
     
-    # Verify dnsmasq is running
-    sleep 2
+    # Kill any existing dnsmasq
+    pkill -f dnsmasq 2>/dev/null
+    sleep 1
+    
+    # Create dnsmasq config file
+    cat > /tmp/dnsmasq.conf << EOF
+interface=$AP_IFACE
+bind-interfaces
+dhcp-range=192.168.4.100,192.168.4.100,255.255.255.0,12h
+dhcp-option=3,$AP_IP
+dhcp-option=6,$AP_IP
+address=/#/$AP_IP
+no-resolv
+server=8.8.8.8
+domain-needed
+bogus-priv
+log-queries
+log-dhcp
+EOF
+    
+    # Start dnsmasq with config file
+    dnsmasq -C /tmp/dnsmasq.conf --daemon 2>/dev/null
+    
+    # Wait and verify dnsmasq is running
+    sleep 3
     if pgrep dnsmasq >/dev/null; then
-        echo -e "${GREEN}DHCP server started${NC}"
+        echo -e "${GREEN}DHCP server started successfully${NC}"
+        echo -e "${GREEN}DHCP range: 192.168.4.100 (single client)${NC}"
+        echo -e "${GREEN}DNS server: $AP_IP${NC}"
     else
-        echo -e "${YELLOW}DHCP server may not be running${NC}"
+        echo -e "${RED}DHCP server failed to start${NC}"
+        echo -e "${YELLOW}Trying manual DHCP setup...${NC}"
+        
+        # Try manual dnsmasq without config file
+        dnsmasq --interface="$AP_IFACE" \
+            --bind-interfaces \
+            --dhcp-range=192.168.4.100,192.168.4.100,255.255.255.0,12h \
+            --dhcp-option=3,$AP_IP \
+            --dhcp-option=6,$AP_IP \
+            --address=/#/$AP_IP \
+            --no-resolv \
+            --server=8.8.8.8 \
+            --daemon 2>/dev/null
+        
+        sleep 2
+        if pgrep dnsmasq >/dev/null; then
+            echo -e "${GREEN}Manual DHCP setup successful${NC}"
+        else
+            echo -e "${RED}DHCP setup failed completely${NC}"
+            echo -e "${YELLOW}Client may need static IP: 192.168.4.100${NC}"
+        fi
     fi
     
     echo -e "${GREEN}AP Setup Complete${NC}"
