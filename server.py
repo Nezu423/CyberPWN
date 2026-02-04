@@ -1246,7 +1246,7 @@ def beacon_sniff():
         except Exception:
             pass
 
-        cmd = "nmcli -t --separator '|' -f SSID,SIGNAL,SECURITY dev wifi list"
+        cmd = "nmcli  -f SSID,SIGNAL,SECURITY dev wifi list"
         rr = run_capture(cmd, timeout=12)
         last_err = {'stdout': rr.get('stdout', ''), 'stderr': rr.get('stderr', ''), 'cmd': cmd, 'rc': rr.get('returncode')}
         if rr.get('returncode') != 0:
