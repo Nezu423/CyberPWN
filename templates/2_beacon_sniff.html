@@ -133,16 +133,16 @@ function updateBeacon() {
           var a = aps[i] || {};
           var ssid = (a.ssid === null || a.ssid === undefined) ? '' : String(a.ssid);
           if (!ssid) ssid = '<hidden>';
-          var signal_bars = (a.signal_bars === null || a.signal_bars === undefined) ? '' : String(a.signal_bars);
+          var signal = (a.signal === null || a.signal === undefined) ? 'N/A' : (String(a.signal) + '%');
           var rssi = (a.rssi === null || a.rssi === undefined) ? 'N/A' : (String(a.rssi) + 'dBm');
           var sec = (a.security === null || a.security === undefined) ? '' : String(a.security);
           if (sec.length > 18) sec = sec.substring(0, 18);
           if (ssid.length > 18) ssid = ssid.substring(0, 18);
           while (ssid.length < 18) ssid += ' ';
-          while (signal_bars.length < 7) signal_bars = ' ' + signal_bars;
+          while (signal.length < 7) signal = ' ' + signal;
           while (rssi.length < 7) rssi = ' ' + rssi;
           while (sec.length < 18) sec += ' ';
-          html += '<div>' + ssid + ' | ' + signal_bars + ' | ' + rssi + ' | ' + sec + '</div>';
+          html += '<div>' + ssid + ' | ' + signal + ' | ' + rssi + ' | ' + sec + '</div>';
         }
       }
       html += '</div>';

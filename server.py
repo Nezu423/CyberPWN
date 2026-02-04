@@ -1068,40 +1068,27 @@ def beacon_sniff():
             signal_str = ''
             security = ''
             
-            # Find signal (looks like '▂▄▆█' or numeric)
+            # Find signal (numeric value)
             for i, part in enumerate(parts):
-                # Check for signal bars (unicode blocks)
-                if any(c in '▂▄▆█' for c in part):
+                # Check for numeric signal (0-100)
+                if part.isdigit() and 0 <= int(part) <= 100:
                     signal_str = part
                     # Security is usually after signal
                     if i + 1 < len(parts):
                         security = ' '.join(parts[i+1:])
-                    # SSID is everything before mode
-                    ssid = ' '.join(parts[1:i])
-                    break
-                # Check for numeric signal
-                elif part.isdigit() and 0 <= int(part) <= 100:
-                    signal_str = part
-                    if i + 1 < len(parts):
-                        security = ' '.join(parts[i+1:])
+                    # SSID is everything before mode (skip IN-USE)
                     ssid = ' '.join(parts[1:i])
                     break
             
             if not ssid:
                 continue
             
-            # Convert signal to numeric if it's bars
-            signal_bars = signal_str
+            # Convert signal to numeric
             signal_num = None
-            if signal_str in '▂▄▆█':
-                # Convert bars to percentage
-                bar_values = {'': 0, ' ': 0, '▂': 25, '▄': 50, '▆': 75, '█': 100}
-                signal_num = bar_values.get(signal_str, 50)
-            else:
-                try:
-                    signal_num = int(signal_str)
-                except:
-                    signal_num = 50
+            try:
+                signal_num = int(signal_str)
+            except:
+                signal_num = 50
             
             # Calculate RSSI (dBm)
             rssi = None
@@ -1116,7 +1103,6 @@ def beacon_sniff():
             aps.append({
                 'ssid': ssid,
                 'signal': signal_num,
-                'signal_bars': signal_bars,
                 'rssi': rssi,
                 'security': security
             })
@@ -1125,7 +1111,7 @@ def beacon_sniff():
             if len(aps) >= 25:
                 break
 
-        note = 'Managed-mode scan with signal bars'
+        note = 'Managed-mode scan with signal percentage'
 
         return {
             'ok': True,
