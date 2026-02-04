@@ -231,6 +231,159 @@ show_processes() {
             fi
         fi
     fi
+    
+    # Check for CyberPWN service (systemd)
+    if command -v systemctl >/dev/null 2>&1; then
+        if systemctl is-active cyberpwn >/dev/null 2>&1; then
+            echo -e "${GREEN}CyberPWN Service: ACTIVE${NC}"
+        else
+            echo -e "${RED}CyberPWN Service: INACTIVE${NC}"
+        fi
+        if systemctl is-enabled cyberpwn >/dev/null 2>&1; then
+            echo -e "${GREEN}CyberPWN Service: ENABLED${NC}"
+        else
+            echo -e "${YELLOW}CyberPWN Service: DISABLED${NC}"
+        fi
+    else
+        echo -e "${YELLOW}systemd not available${NC}"
+    fi
+}
+
+# Function to ping IP addresses
+ping_ip() {
+    local ip="$1"
+    local count="${2:-3}"
+    
+    if command -v ping >/dev/null 2>&1; then
+        # Use Linux ping
+        local result=$(ping -c "$count" -W 2 "$ip" 2>/dev/null)
+        if [ $? -eq 0 ]; then
+            local avg_time=$(echo "$result" | tail -1 | awk -F'/' '{print $5}')
+            echo -e "${GREEN}REACHABLE${NC} (${avg_time}ms avg)"
+            return 0
+        else
+            echo -e "${RED}UNREACHABLE${NC}"
+            return 1
+        fi
+    else
+        echo -e "${YELLOW}ping command not available${NC}"
+        return 2
+    fi
+}
+
+# Function to check server connectivity
+check_server_connectivity() {
+    echo "=== Server Connectivity Check ==="
+    
+    # Get server info first
+    local server_url=$(get_server_url | sed 's|/api/server/info||')
+    local server_ip=$(curl -s "$server_url/api/server/info" 2>/dev/null | python3 -c "
+import json, sys
+try:
+    data = json.load(sys.stdin)
+    print(data.get('primary_ip', 'Unknown'))
+except:
+    pass
+" 2>/dev/null)
+    
+    if [ "$server_ip" = "" ] || [ "$server_ip" = "Unknown" ]; then
+        echo -e "${RED}Could not determine server IP${NC}"
+        return 1
+    fi
+    
+    echo -e "Server IP: ${CYAN}${server_ip}${NC}"
+    
+    # Ping the server IP
+    echo -n "Ping ${server_ip}: "
+    ping_ip "$server_ip"
+    
+    # Test HTTP connectivity
+    echo -n "HTTP ${server_url}: "
+    if curl -s -m 5 "$server_url/api/server/info" >/dev/null 2>&1; then
+        echo -e "${GREEN}REACHABLE${NC}"
+    else
+        echo -e "${RED}UNREACHABLE${NC}"
+    fi
+    
+    # Get WiFi IP and ping server from WiFi interface
+    if command -v iwconfig >/dev/null 2>&1; then
+        local wifi_iface=$(iwconfig 2>/dev/null | grep -E "^[a-zA-Z0-9]+" | awk '{print $1}' | head -1)
+        if [ -n "$wifi_iface" ]; then
+            local wifi_ip=$(ip addr show "$wifi_iface" 2>/dev/null | grep "inet " | awk '{print $2}' | cut -d/ -f1 | head -1)
+            if [ -n "$wifi_ip" ] && [ "$wifi_ip" != "$server_ip" ]; then
+                echo ""
+                echo -e "WiFi IP: ${CYAN}${wifi_ip}${NC}"
+                echo -n "Ping server from WiFi: "
+                ping_ip "$server_ip"
+            fi
+        fi
+    fi
+    
+    return 0
+}
+
+# Function to check CyberPWN service status
+check_cyberpwn_service() {
+    echo "=== CyberPWN Service Status ==="
+    
+    if ! command -v systemctl >/dev/null 2>&1; then
+        echo -e "${RED}systemd not available${NC}"
+        echo -e "${YELLOW}Cannot check service status${NC}"
+        return 1
+    fi
+    
+    # Check if service exists
+    if ! systemctl list-unit-files | grep -q "cyberpwn.service"; then
+        echo -e "${RED}CyberPWN service not found${NC}"
+        echo -e "${YELLOW}Service file: /etc/systemd/system/cyberpwn.service${NC}"
+        return 1
+    fi
+    
+    # Check service status
+    local service_status=$(systemctl is-active cyberpwn 2>/dev/null)
+    local service_enabled=$(systemctl is-enabled cyberpwn 2>/dev/null)
+    
+    case "$service_status" in
+        "active")
+            echo -e "${GREEN}CyberPWN Service: ACTIVE${NC}"
+            ;;
+        "inactive")
+            echo -e "${RED}CyberPWN Service: INACTIVE${NC}"
+            ;;
+        "failed")
+            echo -e "${RED}CyberPWN Service: FAILED${NC}"
+            ;;
+        "activating")
+            echo -e "${YELLOW}CyberPWN Service: ACTIVATING${NC}"
+            ;;
+        "deactivating")
+            echo -e "${YELLOW}CyberPWN Service: DEACTIVATING${NC}"
+            ;;
+        *)
+            echo -e "${RED}CyberPWN Service: UNKNOWN ($service_status)${NC}"
+            ;;
+    esac
+    
+    case "$service_enabled" in
+        "enabled")
+            echo -e "${GREEN}CyberPWN Service: ENABLED (auto-start)${NC}"
+            ;;
+        "disabled")
+            echo -e "${YELLOW}CyberPWN Service: DISABLED (no auto-start)${NC}"
+            ;;
+        *)
+            echo -e "${YELLOW}CyberPWN Service: UNKNOWN ENABLEMENT ($service_enabled)${NC}"
+            ;;
+    esac
+    
+    # Show service details if active
+    if [ "$service_status" = "active" ]; then
+        echo ""
+        echo "=== Service Details ==="
+        systemctl status cyberpwn --no-pager -l | head -10
+    fi
+    
+    return 0
 }
 
 # Function to test API endpoints
@@ -319,9 +472,14 @@ show_dashboard() {
         display_header
         
         # Server Status
-        echo -e "${WHITE}SERVER STATUS:${NC} "
+        echo -e "${WHITE}SERVER STATUS:${NC}"
         local server_status=$(check_server_status && echo "ONLINE" || echo "OFFLINE")
-        echo -e "Status: $server_status "
+        echo -e "Status: $server_status"
+        echo ""
+        
+        # Server Connectivity
+        echo -e "${WHITE}SERVER CONNECTIVITY:${NC}"
+        check_server_connectivity
         echo ""
         
         # Server Binding
@@ -343,7 +501,13 @@ show_dashboard() {
         echo ""
         
         # Processes
+        echo -e "${WHITE}PROCESSES & SERVICES:${NC}"
         show_processes
+        echo ""
+        
+        # Service Status
+        echo -e "${WHITE}CYBERPWN SERVICE:${NC}"
+        check_cyberpwn_service
         echo ""
         
         # Refresh info
@@ -399,23 +563,31 @@ case "${1:-dashboard}" in
     "status")
         check_server_status
         ;;
+    "service")
+        check_cyberpwn_service
+        ;;
+    "ping")
+        check_server_connectivity
+        ;;
     "apis")
         monitor_api_calls "$LOG_FILE" "$API_COUNT_FILE"
         ;;
     "help")
-        echo "Usage: $0 [command] "
+        echo "Usage: $0 [command]"
         echo ""
         echo "Commands:"
-        echo "  dashboard  - Show real-time monitoring dashboard (default) "
-        echo "  test      - Run comprehensive server test "
-        echo "  server    - Show server binding information "
-        echo "  status    - Check if server is running "
-        echo "  apis      - Show API call statistics "
-        echo "  help      - Show this help message "
+        echo "  dashboard  - Show real-time monitoring dashboard (default)"
+        echo "  test      - Run comprehensive server test"
+        echo "  server    - Show server binding information"
+        echo "  status    - Check if server is running"
+        echo "  service   - Check CyberPWN service status"
+        echo "  ping      - Check server connectivity with ping"
+        echo "  apis      - Show API call statistics"
+        echo "  help      - Show this help message"
         ;;
     *)
-        echo "Unknown command: $1 "
-        echo "Use '$0 help' for available commands "
+        echo "Unknown command: $1"
+        echo "Use '$0 help' for available commands"
         exit 1
         ;;
 esac
