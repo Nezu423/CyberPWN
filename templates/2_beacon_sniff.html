@@ -117,7 +117,7 @@ function updateBeacon() {
       if (!aps.length) {
         html += '<span style="color:#FFD600;">No AP details.</span>';
       } else {
-        html += '<div style="color:#FFD600;font-weight:bold;">SSID               | RSSI     | SECURITY</div>';
+        html += '<div style="color:#FFD600;font-weight:bold;">SSID               | RSSI    | SECURITY</div>';
         var i;
         for (i = 0; i < aps.length; i++) {
           var a = aps[i] || {};
@@ -126,9 +126,10 @@ function updateBeacon() {
           var rssi = (a.rssi === null || a.rssi === undefined) ? 'N/A' : (String(a.rssi) + 'dBm');
           var sec = (a.security === null || a.security === undefined) ? '' : String(a.security);
           if (sec.length > 18) sec = sec.substring(0, 18);
-          if (ssid.length > 16) ssid = ssid.substring(0, 16);
+          if (ssid.length > 18) ssid = ssid.substring(0, 18);
           while (ssid.length < 18) ssid += ' ';
-          while (rssi.length < 8) rssi = ' ' + rssi;
+          while (rssi.length < 7) rssi = ' ' + rssi;
+          while (sec.length < 18) sec += ' ';
           html += '<div>' + ssid + ' | ' + rssi + ' | ' + sec + '</div>';
         }
       }

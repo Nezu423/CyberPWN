@@ -1326,6 +1326,7 @@ def beacon_sniff():
                 'rc': last_err.get('rc'),
                 'stderr': (last_err.get('stderr') or '')[:300],
                 'stdout': (last_err.get('stdout') or '')[:300],
+                'sample': (rr.get('stdout') or '').splitlines()[:5]
             }
         }
     except Exception as e:
