@@ -1229,131 +1229,83 @@ def api_arp_spoof_watch() -> Response:
             'cmd': cmd,
             'rc': cap.get('returncode'),
         })
+
     except Exception as e:
         return jsonify({'error': str(e)})
 
 
-# --- Packet Sniffing (using tcpdump/tshark) ---
 def beacon_sniff():
     """Capture and parse WiFi beacon frames to extract SSIDs."""
     try:
         note = ''
-        last_err = {'stdout': '', 'stderr': ''}
+        last_err = {'stdout': '', 'stderr': '', 'cmd': '', 'rc': None}
 
-        cmds = [
-            
-            "nmcli -t -f SSID,BSSID,SIGNAL,CHAN,SECURITY dev wifi list",
-        ]
-        r = None
-        for cmd in cmds:
-            rr = run_capture(cmd, timeout=10)
-            last_err = {'stdout': rr.get('stdout', ''), 'stderr': rr.get('stderr', '')}
-            if rr.get('returncode') == 0 and (rr.get('stdout') or '').strip():
-                r = rr
-                note = 'Managed-mode scan'
-                break
+        try:
+            run_capture("nmcli dev wifi rescan 2>/dev/null", timeout=8)
+            time.sleep(0.4)
+        except Exception:
+            pass
 
-        has_bssid = True
-        if r is None:
-            has_bssid = False
-            rr = run_capture("nmcli -t -f SSID,SIGNAL,CHAN,SECURITY dev wifi list", timeout=10)
-            last_err = {'stdout': rr.get('stdout', ''), 'stderr': rr.get('stderr', '')}
-            if rr.get('returncode') != 0:
-                return {'ok': False, 'error': 'nmcli scan failed', 'stdout': rr.get('stdout', ''), 'stderr': rr.get('stderr', '')}
-            if not (rr.get('stdout') or '').strip():
-                return {'ok': False, 'error': 'nmcli returned no results', 'stdout': rr.get('stdout', ''), 'stderr': rr.get('stderr', '')}
-            r = rr
-            note = 'Managed-mode scan (no BSSID)'
+        cmd = "nmcli -t --separator '|' -f SSID,SIGNAL,SECURITY dev wifi list"
+        rr = run_capture(cmd, timeout=12)
+        last_err = {'stdout': rr.get('stdout', ''), 'stderr': rr.get('stderr', ''), 'cmd': cmd, 'rc': rr.get('returncode')}
+        if rr.get('returncode') != 0:
+            cmd2 = "nmcli -t -f SSID,SIGNAL,SECURITY dev wifi list"
+            rr2 = run_capture(cmd2, timeout=12)
+            last_err = {'stdout': rr2.get('stdout', ''), 'stderr': rr2.get('stderr', ''), 'cmd': cmd2, 'rc': rr2.get('returncode')}
+            rr = rr2
+        if rr.get('returncode') != 0:
+            return {
+                'ok': False,
+                'error': 'nmcli scan failed',
+                'stdout': rr.get('stdout', ''),
+                'stderr': rr.get('stderr', ''),
+                'diag': {'cmd': last_err.get('cmd'), 'rc': last_err.get('rc')}
+            }
 
-        aps = []
-        ssids = []
-        seen_key = set()
+        aps: list[dict] = []
+        ssids: list[str] = []
+        seen = set()
 
-        bssid_re = re.compile(r"([0-9A-Fa-f]{2}(?::[0-9A-Fa-f]{2}){5})")
-
-        for line in (r.get('stdout') or '').split('\n'):
+        for line in (rr.get('stdout') or '').splitlines():
             line = (line or '').strip()
             if not line:
                 continue
 
             ssid = ''
-            bssid = ''
-            signal = ''
-            chan = ''
+            sig_s = ''
             sec = ''
 
-            if has_bssid:
-                if '|' in line:
-                    parts = line.split('|')
-                    if len(parts) < 2:
-                        continue
-                    ssid = (parts[0] or '').strip()
-                    bssid = (parts[1] or '').strip().lower()
-                    signal = (parts[2] or '').strip() if len(parts) > 2 else ''
-                    chan = (parts[3] or '').strip() if len(parts) > 3 else ''
-                    sec = (parts[4] or '').strip() if len(parts) > 4 else ''
-                    if len(parts) > 5:
-                        sec = ('|'.join(parts[4:]) or '').strip()
-                else:
-                    m = bssid_re.search(line)
-                    if not m:
-                        continue
-                    bssid = (m.group(1) or '').strip().lower()
-                    ssid = (line[:m.start()] or '').rstrip(':').strip()
-                    tail = (line[m.end():] or '')
-                    if tail.startswith(':'):
-                        tail = tail[1:]
-                    tail_parts = tail.split(':')
-                    signal = (tail_parts[0] or '').strip() if len(tail_parts) > 0 else ''
-                    chan = (tail_parts[1] or '').strip() if len(tail_parts) > 1 else ''
-                    sec = (':'.join(tail_parts[2:]) or '').strip() if len(tail_parts) > 2 else ''
-
-                if not re.match(r"^[0-9A-Fa-f]{2}(?::[0-9A-Fa-f]{2}){5}$", bssid or ''):
-                    continue
+            if '|' in line:
+                parts = line.split('|')
+                ssid = (parts[0] or '').strip() if len(parts) > 0 else ''
+                sig_s = (parts[1] or '').strip() if len(parts) > 1 else ''
+                if len(parts) > 2:
+                    sec = ('|'.join(parts[2:]) or '').strip()
             else:
-                if '|' in line:
-                    parts = line.split('|')
-                else:
-                    parts = line.split(':')
-                if len(parts) < 1:
-                    continue
-                ssid = (parts[0] or '').strip()
-                signal = (parts[1] or '').strip() if len(parts) > 1 else ''
-                chan = (parts[2] or '').strip() if len(parts) > 2 else ''
-                sec = (':'.join(parts[3:]) or '').strip() if len(parts) > 3 else ''
-                bssid = None
+                parts = line.split(':')
+                ssid = (parts[0] or '').strip() if len(parts) > 0 else ''
+                sig_s = (parts[1] or '').strip() if len(parts) > 1 else ''
+                sec = (':'.join(parts[2:]) or '').strip() if len(parts) > 2 else ''
 
             sig_i = None
             try:
-                sig_i = int(signal)
+                sig_i = int(sig_s)
             except Exception:
                 sig_i = None
-            rssi = None
-            if sig_i is not None:
-                if sig_i < 0:
-                    sig_i = 0
-                if sig_i > 100:
-                    sig_i = 100
-                rssi = int((sig_i / 2) - 100)
 
-            key = (bssid or '') + '|' + (ssid or '')
-            if key in seen_key:
+            key = (ssid or '') + '|' + (str(sig_i) if sig_i is not None else '') + '|' + (sec or '')
+            if key in seen:
                 continue
-            seen_key.add(key)
+            seen.add(key)
 
-            aps.append({
-                'ssid': ssid,
-                'bssid': bssid,
-                'signal': sig_i,
-                'rssi': rssi,
-                'channel': chan,
-                'security': sec,
-            })
-
+            aps.append({'ssid': ssid, 'signal': sig_i, 'security': sec})
             if ssid and ssid not in ssids:
                 ssids.append(ssid)
-            if len(aps) >= 20:
+            if len(aps) >= 25:
                 break
+
+        note = 'Managed-mode scan (SSID/SIGNAL/SECURITY)'
 
         return {
             'ok': True,
@@ -1362,19 +1314,14 @@ def beacon_sniff():
             'aps': aps,
             'note': note,
             'diag': {
-                'has_bssid': has_bssid,
+                'cmd': last_err.get('cmd'),
+                'rc': last_err.get('rc'),
                 'stderr': (last_err.get('stderr') or '')[:300],
+                'stdout': (last_err.get('stdout') or '')[:300],
             }
         }
     except Exception as e:
-        return {
-            'ok': False,
-            'error': str(e),
-            'cmd': cmd if 'cmd' in locals() else None,
-
-            'stdout': result.get('stdout', '') if 'result' in locals() else '',
-            'stderr': result.get('stderr', '') if 'result' in locals() else ''
-        }
+        return {'ok': False, 'error': str(e)}
 
 
 def channel_analyzer():

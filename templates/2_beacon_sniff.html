@@ -113,20 +113,17 @@ function updateBeacon() {
       if (!aps.length) {
         html += '<span style="color:#FFD600;">No AP details.</span>';
       } else {
-        html += '<div style="color:#FFD600;font-weight:bold;">SSID | BSSID | RSSI | SIG | CH | SEC</div>';
+        html += '<div style="color:#FFD600;font-weight:bold;">SSID | SIG | SECURITY</div>';
         var i;
         for (i = 0; i < aps.length; i++) {
           var a = aps[i] || {};
           var ssid = (a.ssid === null || a.ssid === undefined) ? '' : String(a.ssid);
           if (!ssid) ssid = '<hidden>';
-          var bssid = (a.bssid === null || a.bssid === undefined) ? '' : String(a.bssid);
-          var rssi = (a.rssi === null || a.rssi === undefined) ? 'N/A' : (String(a.rssi) + 'dBm');
           var sig = (a.signal === null || a.signal === undefined) ? 'N/A' : (String(a.signal) + '%');
-          var ch = (a.channel === null || a.channel === undefined) ? '' : String(a.channel);
           var sec = (a.security === null || a.security === undefined) ? '' : String(a.security);
           if (sec.length > 18) sec = sec.substring(0, 18);
           if (ssid.length > 14) ssid = ssid.substring(0, 14);
-          html += '<div>' + ssid + ' | ' + bssid + ' | ' + rssi + ' | ' + sig + ' | ' + ch + ' | ' + sec + '</div>';
+          html += '<div>' + ssid + ' | ' + sig + ' | ' + sec + '</div>';
         }
       }
       html += '</div>';
