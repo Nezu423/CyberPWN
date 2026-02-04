@@ -4,7 +4,6 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
 <title>CyberPWN — NETWORK</title>
-<script>if(!sessionStorage.getItem("_k")){window.location.href="/";}</script>
 <style>
 *{box-sizing:border-box}
 html,body{
@@ -88,6 +87,12 @@ body{padding:20px 10px 30px;}
     <button class="btn" type="button" onclick="req('/api/network_info','nlog')">REFRESH INFO</button>
     <div id="nlog" class="log" tabindex="0">Ready. Press button to fetch IP, GW, hostname, WiFi, uptime.</div>
 </div>
+
+<div class="block">
+    <h3>GATEWAY PING</h3>
+    <button class="btn" type="button" onclick="req('/api/ping_gateway','plog')">PING GATEWAY</button>
+    <div id="plog" class="log" tabindex="0">Ready.</div>
+</div>
 <script>
 function req(endpoint, logId){
     var log=document.getElementById(logId);
@@ -110,34 +115,13 @@ function req(endpoint, logId){
     x.onerror=function(){log.innerHTML="ERROR";};
     x.send();
 }
-function ping(host){req('/api/ping?host='+encodeURIComponent(host),'plog');}
-setTimeout(function(){document.getElementById('nlog').focus();},100);
+setTimeout(function(){
+    var nlog = document.getElementById('nlog');
+    if (nlog) nlog.focus();
+}, 100);
 
-// Live auto-refresh for system info and ping
-setInterval(function(){req('/api/network_info','nlog');}, 2000);
-setInterval(function(){req('/api/ping_gateway','plog');}, 4000);
-// ...existing code...
-    x.send();
-}
-function ping(host){
-    var plog=document.getElementById('plog');
-    plog.textContent='Pinging...';
-    var url='/api/ping?host='+encodeURIComponent(host);
-    var x=new XMLHttpRequest();
-    x.open('GET',url,true);
-    x.timeout=20000;
-    x.onreadystatechange=function(){
-        if(x.readyState!==4)return;
-        if(x.status===200){
-            try{
-                var d=JSON.parse(x.responseText);
-                plog.textContent=Array.isArray(d)?d.join('\n'):String(d);
-                plog.focus();
-            }catch(e){plog.textContent='Parse error';}
-        }else{plog.textContent='Error '+x.status;}
-    };
-    x.send();
-}
+setInterval(function(){req('/api/network_info','nlog');}, 5000);
+setInterval(function(){req('/api/ping_gateway','plog');}, 8000);
 </script>
 </body>
 </html>

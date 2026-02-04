@@ -1,11 +1,12 @@
-<!-- Already LG 125DL compatible -->
-
 <!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=240, height=320, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>Interfaces</title>
+    <script>
+        window.location.href = '2_interfaces.html';
+    </script>
     <style>
         html, body {
             width: 240px;
@@ -107,51 +108,7 @@
 <body>
     <div class="container">
         <h1>Interfaces</h1>
-        <div id="iface-list"></div>
         <a href="success.html" class="back">&lt; DASHBOARD</a>
     </div>
-    <script>
-    function fetchStatus() {
-        var x = new XMLHttpRequest();
-        x.open('GET', '/api/interfaces', true);
-        x.onreadystatechange = function() {
-            if (x.readyState !== 4) return;
-            if (x.status === 200) {
-                try {
-                    var data = JSON.parse(x.responseText);
-                    var list = document.getElementById('iface-list');
-                    list.innerHTML = '';
-                    for (var i = 0; i < data.length; i++) {
-                        var iface = data[i];
-                        var div = document.createElement('div');
-                        div.className = 'iface';
-                        div.innerHTML = '<div style="margin-bottom:4px;"><b>' + iface.name + '</b></div>' +
-                            '<div style="margin-bottom:6px;"><span class="' + iface.state + '">' + iface.state.toUpperCase() + '</span></div>' +
-                            (iface.state === 'down' ? '<button onclick="bringUp(\'' + iface.name + '\')">UP</button>' : '<button disabled>UP</button>');
-                        list.appendChild(div);
-                    }
-                } catch(e) {
-                    document.getElementById('iface-list').innerHTML = 'Error parsing data.';
-                }
-            } else {
-                document.getElementById('iface-list').innerHTML = 'Error loading interfaces.';
-            }
-        };
-        x.send();
-    }
-    function bringUp(name) {
-        var x = new XMLHttpRequest();
-        x.open('POST', '/api/bringup', true);
-        x.setRequestHeader('Content-Type', 'application/json');
-        x.onreadystatechange = function() {
-            if (x.readyState === 4) {
-                setTimeout(fetchStatus, 1000);
-            }
-        };
-        x.send(JSON.stringify({ name: name }));
-    }
-    setInterval(fetchStatus, 2000);
-    fetchStatus();
-    </script>
 </body>
 </html>

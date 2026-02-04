@@ -4,7 +4,6 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
 <title>CyberPWN — WIFI PAYLOADS</title>
-<script>if(!sessionStorage.getItem("_k")){window.location.href="/";}</script>
 <style>
     :root {
       --nord0: #2E3440;
@@ -60,10 +59,8 @@
 </div>
 
 <div class="payload-list">
-    <a class="acc-btn beacon" href="wifi_scanner.html">&gt; BEACON SNIFF</a>
-    <a class="acc-btn vuln" href="vuln_check.html">&gt; VULN CHECK (NMAP)</a>
-    <a class="acc-btn evil" href="evil_twin.html">&gt; EVIL TWIN</a>
-    <a class="acc-btn deauth" href="deauth.html">&gt; DEAUTH</a>
+    <a class="acc-btn beacon" href="2_beacon_sniff.html">&gt; BEACON SNIFF</a>
+    <a class="acc-btn vuln" href="network.html">&gt; NETWORK</a>
 </div>
 
 <!-- Interface Management Section -->
@@ -72,13 +69,7 @@
         <span class="t1" style="font-size:13px;">INTERFACE STATUS</span>
         <button onclick="refreshInterfaces()" style="background:#000;color:#fff;border:1px solid #fff;padding:5px 10px;font-size:11px;cursor:pointer;">REFRESH</button>
     </div>
-    
-    <!-- Evil Twin Status -->
-    <div id="evil-twin-status" style="background:#111;border:1px solid #ffd600;padding:12px;margin-bottom:12px;border-radius:4px;">
-        <div style="color:#ffd600;font-weight:bold;margin-bottom:8px;">EVIL TWIN AP</div>
-        <div id="evil-twin-info" style="font-size:12px;color:#ccc;">Loading...</div>
-    </div>
-    
+
     <!-- Interface Status Cards -->
     <div id="interfaces-container" style="display:flex;flex-direction:column;gap:10px;">
         <div style="color:#ccc;font-size:12px;text-align:center;">Loading interfaces...</div>
@@ -183,17 +174,6 @@ function refreshInterfaces() {
             return;
         }
 
-        // Update Evil Twin Status
-        var et = (data && data.evil_twin) ? data.evil_twin : {};
-        var etInfo = document.getElementById('evil-twin-info');
-        if (et && et.running) {
-            etInfo.innerHTML = '<span style="color:#0f0;">RUNNING</span><br>' +
-                'SSID: <span style="color:#fff;">' + (et.ssid || 'Unknown') + '</span><br>' +
-                'Interface: <span style="color:#fff;">' + (et.interface || 'Unknown') + '</span>';
-        } else {
-            etInfo.innerHTML = '<span style="color:#999;">STOPPED</span>';
-        }
-
         // Update Interfaces
         var container = document.getElementById('interfaces-container');
         var interfaces = (data && data.interfaces) ? data.interfaces : {};
@@ -234,11 +214,6 @@ function refreshInterfaces() {
             html += '</div>';
 
             html += '<div class="iface-controls">';
-            if (status.mode === 'monitor') {
-                html += '<button class="ctrl-btn monitor" onclick="stopMonitor(\'' + name + '\')">STOP MON</button>';
-            } else if (status.mode === 'managed' || status.mode === 'unknown' || !status.mode) {
-                html += '<button class="ctrl-btn monitor" onclick="startMonitor(\'' + name + '\')">START MON</button>';
-            }
             if (status.up) {
                 html += '<button class="ctrl-btn down" onclick="ifaceDown(\'' + name + '\')">DOWN</button>';
             } else {
@@ -249,38 +224,6 @@ function refreshInterfaces() {
         }
 
         container.innerHTML = html;
-    });
-}
-
-function startMonitor(iface) {
-    if (!confirm('Put ' + iface + ' into monitor mode?')) return;
-    apiJson('POST', '/api/interfaces/' + encodeURIComponent(iface) + '/monitor/start', function(err, data) {
-        if (err) {
-            alert('Error: ' + err);
-            return;
-        }
-        if (data && data.ok) {
-            alert('Monitor mode started: ' + (data.monitor_interface || iface));
-            refreshInterfaces();
-        } else {
-            alert('Error: ' + ((data && data.error) ? data.error : 'Failed'));
-        }
-    });
-}
-
-function stopMonitor(iface) {
-    if (!confirm('Stop monitor mode on ' + iface + '?')) return;
-    apiJson('POST', '/api/interfaces/' + encodeURIComponent(iface) + '/monitor/stop', function(err, data) {
-        if (err) {
-            alert('Error: ' + err);
-            return;
-        }
-        if (data && data.ok) {
-            alert('Monitor mode stopped');
-            refreshInterfaces();
-        } else {
-            alert('Error: ' + ((data && data.error) ? data.error : 'Failed'));
-        }
     });
 }
 

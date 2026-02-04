@@ -3,8 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-<title>CyberPWN — DEAUTH</title>
-<script>if(!sessionStorage.getItem("_k")){window.location.href="/";}</script>
+<title>CyberPWN — WIFI SCAN</title>
 <style>
 *{box-sizing:border-box}
 html,body{
@@ -42,7 +41,7 @@ td.center-cell{vertical-align:middle;text-align:center;padding-bottom:12px;}
 <body onload="_L()">
 <table id="layout-table"><tr><td class="center-cell">
 <div class="head-row">
-    <span class="t1">DEAUTH</span>
+    <span class="t1">WIFI SCAN</span>
     <a href="wifi.html" class="back">&lt; PAYLOADS</a>
 </div>
 <button type="button" class="b scan" onclick="_scan()" style="width:100%;margin-bottom:4px;">SCAN SSIDs</button>
@@ -58,9 +57,9 @@ td.center-cell{vertical-align:middle;text-align:center;padding-bottom:12px;}
 </td></tr></table>
 <script>
 var _list=[],_sel=0;
-function _L(){_m("SELECT 1–9","#555");}
+function _L(){_m("SCAN ONLY (NO MONITOR MODE)","#555");}
 function _a(n){var i=parseInt(n,10);if(i<1||i>9)return;if(_list.length<i){_m("NO SSID","#e44");return;}
-_sel=i;_u();_m("SELECTED: "+i+" — OK to deauth","#FCEE0A");}
+_sel=i;_u();_m("SELECTED: "+i+" (SCAN ONLY)","#FCEE0A");}
 function _c(){_sel=0;_u();_m("SELECT 1–9","#555");}
 function _u(){var d=document.getElementById("d");if(_sel===0){d.innerHTML="";return;}
 if(_list[_sel-1])d.innerHTML=_sel+": "+(_list[_sel-1].ssid||"").substring(0,14);else d.innerHTML=_sel;}
@@ -73,14 +72,9 @@ try{_list=JSON.parse(x.responseText);if(!Array.isArray(_list))_list=[];
 var txt="";for(var i=0;i<_list.length&&i<9;i++)txt+=(i+1)+". "+(_list[i].ssid||"?").substring(0,16)+" "+(_list[i].signal||"")+"%\n";
 listEl.innerHTML=txt||"No networks.";_sel=0;_u();_m("SELECT 1–9","#555");}catch(e){listEl.innerHTML="Parse error";_m("ERROR","#e44");}};
 x.send();}
-function _v(){if(_sel===0){_m("SELECT 1–9","#e44");return;}
-if(!_list[_sel-1]){_m("INVALID","#e44");return;}
-var bssid=_list[_sel-1].bssid;_m("SENDING...","#FCEE0A");
-var x=new XMLHttpRequest();x.open("POST","/api/deauth",true);x.setRequestHeader("Content-Type","application/json");
-x.onreadystatechange=function(){if(x.readyState!==4)return;
-try{var d=JSON.parse(x.responseText);if(d.error){_m("FAIL: "+d.error,"#e44");return;}
-_m(d.msg||"SENT","#0F0");}catch(e){_m("ERROR","#e44");}};
-x.send(JSON.stringify({bssid:bssid}));}
+function _v(){
+  _m("NOT SUPPORTED (NO MONITOR MODE)","#e44");
+}
 </script>
 </body>
 </html>

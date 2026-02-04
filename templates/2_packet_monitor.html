@@ -57,47 +57,7 @@
 <div class="result" id="result">Loading...</div>
 <button class="btn" onclick="location.href='success.html'">Back to Dashboard</button>
 <script>
-function apiJson(method, url, cb) {
-  var xhr = new XMLHttpRequest();
-  xhr.open(method, url, true);
-  xhr.onreadystatechange = function() {
-    if (xhr.readyState !== 4) return;
-    if (xhr.status < 200 || xhr.status >= 300) {
-      cb(new Error('HTTP ' + xhr.status), null);
-      return;
-    }
-    try {
-      cb(null, JSON.parse(xhr.responseText));
-    } catch (e) {
-      cb(e, null);
-    }
-  };
-  xhr.send(null);
-}
-
-function updatePacketMonitor() {
-  apiJson('POST', '/api/sniffer/packet_monitor', function(err, data) {
-    var html = '';
-    if (err) {
-      html = '<span style="color:#BF616A;">Error: ' + err + '</span>';
-      document.getElementById('result').innerHTML = html;
-      return;
-    }
-    if (data && data.ok) {
-      html += '<b>Packets: ' + data.count + '</b><ul style="padding-left:16px;">';
-      var i;
-      for (i = 0; i < (data.packets || []).length; i++) {
-        html += '<li>' + data.packets[i] + '</li>';
-      }
-      html += '</ul>';
-    } else {
-      html = '<span style="color:#BF616A;">Error: ' + ((data && data.error) ? data.error : 'Unknown') + '</span>';
-    }
-    document.getElementById('result').innerHTML = html;
-  });
-}
-setInterval(updatePacketMonitor, 2000);
-updatePacketMonitor();
+document.getElementById('result').innerHTML = '<span style="color:#BF616A;">Not supported on this device (no monitor mode)</span>';
 </script>
 </body>
 </html>

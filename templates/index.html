@@ -135,7 +135,7 @@
 <div style="background:#222;color:#fff;padding:18px 10px 18px 10px;font-size:15px;text-align:center;">
   <b>NO JAVASCRIPT DETECTED</b><br>
   <span style="font-size:13px;">This device/browser does not support JavaScript.<br>PIN login is not available.<br><br>
-  <a href="success.html" style="color:#0cf;font-size:15px;">Enter Dashboard</a></span>
+  <a href="/" style="color:#0cf;font-size:15px;">Enter Dashboard</a></span>
 </div>
 </noscript>
 <table id="layout-table"><tr><td class="center-cell">
@@ -186,7 +186,6 @@ function _v(){
       try{
         var resp = JSON.parse(x.responseText);
         if(resp && resp.ok){
-          sessionStorage.setItem("_k","1");
           _m("ACCESS GRANTED",getComputedStyle(document.body).getPropertyValue('--nord4'));
           d.style.borderColor=getComputedStyle(document.body).getPropertyValue('--nord4');
           setTimeout(function(){window.location.href="success.html";},500);
