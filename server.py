@@ -1021,26 +1021,11 @@ def beacon_sniff():
         note = ''
         last_err = {'stdout': '', 'stderr': '', 'cmd': '', 'rc': None}
 
-<<<<<<< HEAD
         try:
             run_capture("nmcli dev wifi rescan 2>/dev/null", timeout=8)
             time.sleep(0.4)
         except Exception:
             pass
-=======
-        cmds = [
-            "nmcli -t --separator '|' -f SSID,BSSID,SIGNAL,CHAN,SECURITY dev wifi list",
-            "nmcli -t -f SSID,BSSID,SIGNAL,CHAN,SECURITY dev wifi list",
-        ]
-        r = None
-        for cmd in cmds:
-            rr = run_capture(cmd, timeout=10)
-            last_err = {'stdout': rr.get('stdout', ''), 'stderr': rr.get('stderr', '')}
-            if rr.get('returncode') == 0 and (rr.get('stdout') or '').strip():
-                r = rr
-                note = 'Managed-mode scan'
-                break
->>>>>>> parent of 6c1cdae (testing fix)
 
         cmd = "nmcli -t -f SSID,SIGNAL,SECURITY dev wifi list"
         rr = run_capture(cmd, timeout=12)
