@@ -7,22 +7,22 @@
 <!-- System fonts only for compatibility -->
 <style>
   :root {
-    --nord0: #2E3440;
-    --nord1: #3B4252;
-    --nord2: #434C5E;
-    --nord3: #4C566A;
-    --nord4: #D8DEE9;
-    --nord5: #E5E9F0;
-    --nord6: #ECEFF4;
-    --nord7: #8FBCBB;
-    --nord8: #88C0D0;
-    --nord9: #81A1C1;
-    --nord10: #5E81AC;
-    --nord11: #BF616A;
-    --nord12: #D08770;
-    --nord13: #EBCB8B;
-    --nord14: #A3BE8C;
-    --nord15: #B48EAD;
+    --nord0: #000000;
+    --nord1: #000000;
+    --nord2: #000000;
+    --nord3: #202020;
+    --nord4: #EAEAEA;
+    --nord5: #EAEAEA;
+    --nord6: #EAEAEA;
+    --nord7: #00FFE7;
+    --nord8: #00FFE7;
+    --nord9: #FF00C8;
+    --nord10: #00FFE7;
+    --nord11: #FF3C00;
+    --nord12: #FFD600;
+    --nord13: #FFD600;
+    --nord14: #00FF5A;
+    --nord15: #FF00C8;
   }
   *{box-sizing:border-box}
   html,body{
@@ -52,13 +52,13 @@
   .tab-btn{
     flex:1;
     padding:6px 0;
-    background:var(--nord2);
+    background:var(--nord0);
     color:var(--nord4);
-    border:1px solid var(--nord3);
+    border:1px solid var(--nord8);
     font-weight:bold;
     cursor:pointer;
     font-size:11px;
-    border-radius:4px;
+    border-radius:0;
     transition:background .15s, color .15s, border .15s;
   }
   .tab-btn.active{
@@ -80,13 +80,13 @@
   .menu-btn{
     display:block;
     width:100%;
-    background:var(--nord1);
+    background:var(--nord0);
     color:var(--nord13);
-    border:1px solid var(--nord3);
+    border:1px solid var(--nord13);
     padding:6px 8px;
     font-size:10px;
     font-weight:bold;
-    border-radius:4px;
+    border-radius:0;
     cursor:pointer;
     transition:background .15s, color .15s, border .15s;
     text-align:left;
@@ -123,8 +123,6 @@ window.onload=function(){showTab('listener');}
     <li><a href="2_beacon_sniff.html" style="color:#0cf;">Beacon Sniff</a></li>
     <li><a href="2_channel_analyzer.html" style="color:#0cf;">Channel Analyzer</a></li>
     <li><a href="2_interfaces.html" style="color:#0cf;">Interfaces</a></li>
-    <li><a href="wifi.html" style="color:#0cf;">WiFi</a></li>
-    <li><a href="network.html" style="color:#0cf;">Network</a></li>
   </ul>
 </div>
 </noscript>
@@ -141,8 +139,6 @@ window.onload=function(){showTab('listener');}
         <li><a href="2_beacon_sniff.html" class="menu-btn" data-label="Beacon Sniff">Beacon Sniff</a></li>
         <li><a href="2_channel_analyzer.html" class="menu-btn" data-label="Channel Analyzer">Channel Analyzer</a></li>
         <li><a href="2_interfaces.html" class="menu-btn" data-label="Interfaces">Interfaces</a></li>
-        <li><a href="wifi.html" class="menu-btn" data-label="WiFi">WiFi</a></li>
-        <li><a href="network.html" class="menu-btn" data-label="Network">Network</a></li>
       </ul>
     </div>
   </div>

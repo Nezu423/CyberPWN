@@ -186,6 +186,8 @@ def favicon():
 def serve_page(filename):
     if not filename.endswith('.html'):
         filename += '.html'
+    if filename in ('wifi.html', 'network.html'):
+        abort(404)
     if filename != 'index.html' and not session.get('auth'):
         return redirect('/')
     template_path = os.path.join(app.template_folder, filename)
@@ -419,3 +421,4 @@ def sniffer_channel_analyzer() -> Response:
 
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=5000, debug=False)
+ 

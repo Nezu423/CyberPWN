@@ -10,8 +10,7 @@ html,body{
     height:100%;
     margin:0;
     padding:0;
-    background:#000 url('https://i.imgur.com/0v1CGpT.png') center 40px no-repeat;
-    background-size:120px 120px;
+    background:#000;
     color:#fff;
     font-family: Arial, Helvetica, sans-serif;
     overflow:hidden;
@@ -20,21 +19,21 @@ html,body{
 td.center-cell{vertical-align:middle;text-align:center;padding-bottom:12px;}
 .head-row{display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;}
 .t1{color:#fff;font-size:12px;}
-.back{color:#fff;text-decoration:none;border:1px solid #fff;padding:2px 6px;font-size:10px;background:transparent;}
+.back{color:#00ffe7;text-decoration:none;border:1px solid #00ffe7;padding:2px 6px;font-size:10px;background:transparent;}
 .back:focus{background:#fff;color:#000;}
 #list{width:100%;max-height:100px;background:#000;border:1px solid #fff;color:#fff;font-size:11px;padding:6px;overflow-y:scroll;text-align:left;white-space:pre-wrap;margin:6px auto;}
-#d{background:#000;color:#fff;font-size:18px;font-weight:bold;min-height:36px;width:220px;border:2px solid #fff;margin:0 auto 4px auto;line-height:36px;letter-spacing:2px;text-align:center;}
+#d{background:#111;color:#00ffe7;font-size:18px;font-weight:bold;min-height:36px;width:220px;border:1px solid #00ffe7;margin:0 auto 4px auto;line-height:36px;letter-spacing:2px;text-align:center;}
 #s{color:#fff;font-size:10px;min-height:14px;margin-bottom:6px;text-transform:uppercase;font-weight:bold;}
 .keypad{margin:0 auto;width:220px;}
 .keypad td{padding:2px;width:33%;}
 
 /* wifi.html style: black bg, white border, colored text */
-.b{width:100%;height:42px;background:#000;color:#00ffe7;font-size:18px;border:1.5px solid #fff;cursor:pointer;transition:background .15s, color .15s;}
+.b{width:100%;height:42px;background:#000;color:#00ffe7;font-size:18px;border:1px solid #fff;cursor:pointer;transition:background .15s, color .15s;}
 .b:focus,.b:active{background:#fff;color:#000;outline:none;}
 .cl{color:#ffd600;}
 .en{color:#ff3c00;}
 .scan{font-size:11px;color:#ff00c8;}
-#d{background:#111;color:#00ffe7;font-size:18px;font-weight:bold;min-height:36px;width:220px;border:2px solid #fff;margin:0 auto 4px auto;line-height:36px;letter-spacing:2px;text-align:center;}
+#d{background:#111;color:#00ffe7;font-size:18px;font-weight:bold;min-height:36px;width:220px;border:1px solid #00ffe7;margin:0 auto 4px auto;line-height:36px;letter-spacing:2px;text-align:center;}
 </style>
 <!-- System fonts only for compatibility -->
 </head>
@@ -42,7 +41,7 @@ td.center-cell{vertical-align:middle;text-align:center;padding-bottom:12px;}
 <table id="layout-table"><tr><td class="center-cell">
 <div class="head-row">
     <span class="t1">WIFI SCAN</span>
-    <a href="wifi.html" class="back">&lt; PAYLOADS</a>
+    <a href="success.html" class="back">&lt; DASHBOARD</a>
 </div>
 <button type="button" class="b scan" onclick="_scan()" style="width:100%;margin-bottom:4px;">SCAN SSIDs</button>
 <div id="list">Press SCAN to load networks (1–9).</div>

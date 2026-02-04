@@ -7,22 +7,22 @@
 <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;700&display=swap" rel="stylesheet">
 <style>
     :root {
-      --nord0: #2E3440;
-      --nord1: #3B4252;
-      --nord2: #434C5E;
-      --nord3: #4C566A;
-      --nord4: #D8DEE9;
-      --nord5: #E5E9F0;
-      --nord6: #ECEFF4;
-      --nord7: #8FBCBB;
-      --nord8: #88C0D0;
-      --nord9: #81A1C1;
-      --nord10: #5E81AC;
-      --nord11: #BF616A;
-      --nord12: #D08770;
-      --nord13: #EBCB8B;
-      --nord14: #A3BE8C;
-      --nord15: #B48EAD;
+      --nord0: #000000;
+      --nord1: #000000;
+      --nord2: #000000;
+      --nord3: #202020;
+      --nord4: #EAEAEA;
+      --nord5: #EAEAEA;
+      --nord6: #EAEAEA;
+      --nord7: #00FFE7;
+      --nord8: #00FFE7;
+      --nord9: #FF00C8;
+      --nord10: #00FFE7;
+      --nord11: #FF3C00;
+      --nord12: #FFD600;
+      --nord13: #FFD600;
+      --nord14: #00FF5A;
+      --nord15: #FF00C8;
     }
     body {
       background: var(--nord0);
@@ -31,24 +31,26 @@
       padding: 10px;
     }
     .result {
-      background: var(--nord2);
+      background: var(--nord0);
+      border: 1px solid var(--nord8);
       padding: 8px;
-      border-radius: 6px;
+      border-radius: 0;
       word-break: break-all;
     }
     .btn {
       margin-top: 12px;
       padding: 8px 16px;
-      background: var(--nord8);
-      color: var(--nord0);
-      border: none;
-      border-radius: 4px;
+      background: var(--nord0);
+      color: var(--nord8);
+      border: 1px solid var(--nord8);
+      border-radius: 0;
       font-weight: bold;
       cursor: pointer;
       transition: background .15s, color .15s;
     }
     .btn:hover {
-      background: var(--nord9);
+      background: var(--nord8);
+      color: var(--nord0);
     }
 </style>
 </head>
