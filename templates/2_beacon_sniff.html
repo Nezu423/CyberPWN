@@ -105,19 +105,25 @@ function updateBeacon() {
       var openSSIDs = [];
       
       if (data.aps && data.aps.length > 0) {
+        output += '=== WiFi Networks Found: ' + data.aps.length + ' ===\n\n';
         data.aps.forEach(function(ap) {
           var line = '';
           if (ap.ssid) {
-            line += ap.ssid;
+            // Format SSID with proper spacing
+            line += 'SSID: ' + ap.ssid + '\n';
           }
           if (ap.signal !== undefined) {
-            line += ' Signal: ' + ap.signal + '%';
+            line += '  Signal: ' + ap.signal + '%';
           }
           if (ap.rssi !== undefined) {
             line += ' (' + ap.rssi + ' dBm)';
           }
+          if (ap.signal !== undefined || ap.rssi !== undefined) {
+            line += '\n';
+          }
           if (ap.security) {
-            line += ' ' + ap.security;
+            var secColor = ap.security === 'OPEN' ? '#00ff5a' : '#ffd600';
+            line += '  Security: <span style="color:' + secColor + '">' + ap.security + '</span>\n';
             if (ap.security === 'OPEN') {
               openSSIDs.push(ap.ssid);
             }
@@ -125,7 +131,7 @@ function updateBeacon() {
           output += line + '\n';
         });
       } else {
-        output = 'No networks detected';
+        output = '=== No WiFi Networks Detected ===\n\nTry scanning again or check your WiFi adapter.';
       }
       
       result.innerHTML = esc(output);
