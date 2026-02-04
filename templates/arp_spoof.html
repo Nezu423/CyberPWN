@@ -1,0 +1,136 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>ARP Spoof Detect</title>
+<style>
+*{box-sizing:border-box}
+html,body{
+  height:100%;
+  width:100%;
+  margin:0;
+  padding:0;
+  background:#000;
+  color:#fff;
+  font-family: Arial, Helvetica, sans-serif;
+  overflow-y:auto;
+}
+body{padding:10px 8px 16px;}
+a{color:#FFD600 !important;text-decoration:none;}
+a:visited{color:#FFD600 !important;}
+.h{position:relative;border-bottom:1px solid #202020;padding-bottom:8px;margin-bottom:10px;}
+.t{display:block;padding-right:88px;color:#00FFE7;font-size:12px;font-weight:bold;letter-spacing:1px;}
+.back{position:absolute;right:0;top:0;color:#00FFE7;text-decoration:none;border:1px solid #00FFE7;padding:3px 6px;font-size:10px;background:transparent;}
+.back:focus{background:#00FFE7;color:#000;}
+.card{border:1px solid #202020;background:#000;padding:10px 8px;margin-bottom:10px;}
+.st{font-size:12px;font-weight:bold;margin-bottom:6px;}
+.ok{color:#00FF5A;}
+.warn{color:#FFD600;}
+.bad{color:#FF3C00;}
+.dim{color:#bbb;}
+.btn{display:block;width:100%;margin-top:6px;padding:10px 8px;background:#000;color:#00FFE7;border:1px solid #00FFE7;font-size:12px;font-weight:bold;cursor:pointer;}
+.btn:focus,.btn:hover{background:#00FFE7;color:#000;}
+.btn2{border-color:#FFD600;color:#FFD600;}
+.btn2:focus,.btn2:hover{background:#FFD600;color:#000;border-color:#FFD600;}
+.btn3{border-color:#FF3C00;color:#FF3C00;}
+.btn3:focus,.btn3:hover{background:#FF3C00;color:#000;border-color:#FF3C00;}
+.log{background:#000;border:1px solid #202020;color:#fff;font-size:11px;padding:8px;white-space:pre-wrap;}
+</style>
+</head>
+<body>
+<div class="h">
+  <div class="t">ARP SPOOF DETECT</div>
+  <a class="back" href="success.html">&lt; DASH</a>
+</div>
+
+<div class="card">
+  <div id="status" class="st dim">Loading...</div>
+  <div id="details" class="log">...</div>
+</div>
+
+<div class="card">
+  <div class="st">Actions</div>
+  <button class="btn btn2" type="button" onclick="setBaseline()">SET BASELINE (TRUST CURRENT GW)</button>
+  <button class="btn btn3" type="button" onclick="clearBaseline()">CLEAR BASELINE</button>
+  <button class="btn" type="button" onclick="refresh()">REFRESH</button>
+</div>
+
+<script>
+function _e(s){return (s===null||s===undefined)?'':String(s);}
+function setText(id, txt){var el=document.getElementById(id); if(el) el.innerHTML=txt;}
+
+function api(method, url, body, cb){
+  var x=new XMLHttpRequest();
+  x.open(method, url, true);
+  x.setRequestHeader('Content-Type','application/json');
+  x.timeout=15000;
+  x.onreadystatechange=function(){
+    if(x.readyState!==4) return;
+    if(x.status<200 || x.status>=300){ cb(new Error('HTTP '+x.status), null); return; }
+    try{ cb(null, JSON.parse(x.responseText)); }
+    catch(e){ cb(e, null); }
+  };
+  x.ontimeout=function(){ cb(new Error('TIMEOUT'), null); };
+  x.onerror=function(){ cb(new Error('ERROR'), null); };
+  x.send(body ? JSON.stringify(body) : null);
+}
+
+function render(d){
+  var st='UNKNOWN';
+  var cls='dim';
+  if(d && d.status==='ok'){st='OK';cls='ok';}
+  else if(d && d.status==='no_baseline'){st='NO BASELINE';cls='warn';}
+  else if(d && d.status==='alert'){st='ALERT';cls='bad';}
+
+  setText('status','STATUS: <span class="'+cls+'">'+st+'</span>');
+
+  var out='Gateway IP: '+_e(d.gateway_ip)+'\n';
+  out+='Gateway MAC: '+_e(d.gateway_mac || 'N/A')+'\n';
+  out+='Iface: '+_e(d.gateway_iface || 'N/A')+'\n\n';
+  out+='Baseline IP: '+_e(d.baseline_ip || 'NONE')+'\n';
+  out+='Baseline MAC: '+_e(d.baseline_mac || 'NONE')+'\n';
+  if(d.status==='alert'){
+    out+='\nWARNING: Gateway MAC/IP changed. Possible ARP spoof / MITM.';
+  } else if(d.status==='no_baseline'){
+    out+='\nSet a baseline while you trust the network.';
+  }
+  setText('details', out);
+}
+
+function refresh(){
+  setText('status','Loading...');
+  api('GET','/api/arp_spoof/status',null,function(err,d){
+    if(err){
+      setText('status','STATUS: <span class="bad">ERROR</span>');
+      setText('details', _e(err));
+      return;
+    }
+    if(!d || !d.ok){
+      setText('status','STATUS: <span class="bad">ERROR</span>');
+      setText('details', _e(d && d.error ? d.error : 'Unknown error'));
+      return;
+    }
+    render(d);
+  });
+}
+
+function setBaseline(){
+  api('POST','/api/arp_spoof/baseline/set',{},function(err,d){
+    if(err){ setText('details','Error: '+_e(err)); return; }
+    refresh();
+  });
+}
+
+function clearBaseline(){
+  api('POST','/api/arp_spoof/baseline/clear',{},function(err,d){
+    if(err){ setText('details','Error: '+_e(err)); return; }
+    refresh();
+  });
+}
+
+setInterval(refresh, 4000);
+refresh();
+</script>
+</body>
+</html>

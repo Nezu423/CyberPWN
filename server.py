@@ -1,6 +1,8 @@
 import subprocess
 import os
 import re
+import json
+import time
 import hashlib
 import ipaddress
 import socket
@@ -15,6 +17,8 @@ from flask import Flask, Response, jsonify, request, render_template, send_from_
 base_dir = os.path.abspath(os.path.dirname(__file__))
 template_dir = os.path.join(base_dir, 'templates')
 app = Flask(__name__, template_folder=template_dir)
+
+_ARP_BASELINE_PATH = os.path.join(base_dir, 'arp_baseline.json')
 
 app.secret_key = hashlib.sha256((base_dir + ":" + "cyberpwn").encode()).hexdigest()
 app.config.update(
@@ -108,13 +112,103 @@ def _is_private_or_local_ip(ip: str) -> bool:
 
 
 def _require_private_target(host: str) -> tuple[bool, str, list[str]]:
-    host = '1'
+    host = (host or '').strip()
     if not host:
         return False, 'Target host required', []
-    if host == '1':
+
+    if host.lower() in ('localhost',):
         return True, '', ['127.0.0.1']
-    ips = _resolve_host_addrs(host)
-   
+
+    try:
+        ipaddress.ip_address(host)
+        ips = [host]
+    except Exception:
+        ips = _resolve_host_addrs(host)
+
+    if not ips:
+        return False, 'Could not resolve host', []
+
+    private_ips: list[str] = []
+    for ip in ips:
+        if _is_private_or_local_ip(ip):
+            private_ips.append(ip)
+        else:
+            return False, 'Target must be private LAN or localhost', ips[:4]
+
+    return True, '', private_ips[:4]
+
+
+def _get_default_gateway_ip() -> tuple[str | None, str | None]:
+    r = run_capture("ip route | grep default | head -1", timeout=2)
+    if r.get('returncode') != 0 or not (r.get('stdout') or '').strip():
+        return None, 'No default gateway found'
+    parts = (r.get('stdout') or '').strip().split()
+    if 'via' in parts:
+        idx = parts.index('via')
+        if idx + 1 < len(parts):
+            gw = parts[idx + 1].strip()
+        else:
+            return None, 'Could not parse gateway'
+    else:
+        if len(parts) >= 3:
+            gw = parts[2].strip()
+        else:
+            return None, 'Could not parse gateway'
+
+    try:
+        ipaddress.ip_address(gw)
+    except Exception:
+        return None, 'Invalid gateway address'
+    return gw, None
+
+
+def _get_neighbor_mac(ip: str) -> tuple[str | None, str | None]:
+    ip = (ip or '').strip()
+    if not ip:
+        return None, None
+    mac = None
+    iface = None
+
+    r = run_capture(f"ip neigh show {ip} 2>/dev/null", timeout=2)
+    out = (r.get('stdout') or '').strip()
+    m = re.search(r"\\bdev\\s+(\\S+)", out)
+    if m:
+        iface = m.group(1)
+    m = re.search(r"\\blladdr\\s+([0-9A-Fa-f:]{17})", out)
+    if m:
+        mac = m.group(1).lower()
+
+    if mac:
+        return mac, iface
+
+    r2 = run_capture(f"arp -n {ip} 2>/dev/null | head -1", timeout=2)
+    out2 = (r2.get('stdout') or '').strip()
+    m2 = re.search(r"([0-9A-Fa-f]{2}(?::[0-9A-Fa-f]{2}){5})", out2)
+    if m2:
+        mac = m2.group(1).lower()
+    return mac, iface
+
+
+def _arp_baseline_read() -> dict:
+    try:
+        if not os.path.exists(_ARP_BASELINE_PATH):
+            return {}
+        with open(_ARP_BASELINE_PATH, 'r', encoding='utf-8') as f:
+            data = json.load(f)
+            return data if isinstance(data, dict) else {}
+    except Exception:
+        return {}
+
+
+def _arp_baseline_write(data: dict) -> bool:
+    try:
+        tmp = _ARP_BASELINE_PATH + '.tmp'
+        with open(tmp, 'w', encoding='utf-8') as f:
+            json.dump(data, f)
+        os.replace(tmp, _ARP_BASELINE_PATH)
+        return True
+    except Exception:
+        return False
 
 
 @app.route('/api/url_sniffer', methods=['POST'])
@@ -526,6 +620,82 @@ def ping_gateway() -> Response:
         return jsonify(lines)
     except Exception as e:
         return jsonify([f"ERROR: {str(e)}"])
+
+
+@app.route('/api/arp_spoof/status')
+def api_arp_spoof_status() -> Response:
+    try:
+        gw, err = _get_default_gateway_ip()
+        if not gw:
+            return jsonify({'ok': False, 'error': err or 'Gateway not found'}), 400
+        mac, iface = _get_neighbor_mac(gw)
+
+        baseline = _arp_baseline_read()
+        base_ip = (baseline.get('gateway_ip') or '').strip() if isinstance(baseline, dict) else ''
+        base_mac = (baseline.get('gateway_mac') or '').strip().lower() if isinstance(baseline, dict) else ''
+
+        mismatch = False
+        status = 'unknown'
+        if not base_mac:
+            status = 'no_baseline'
+        else:
+            status = 'ok'
+            if base_ip and base_ip != gw:
+                status = 'alert'
+                mismatch = True
+            if mac and base_mac and mac.lower() != base_mac.lower():
+                status = 'alert'
+                mismatch = True
+
+        return jsonify({
+            'ok': True,
+            'gateway_ip': gw,
+            'gateway_mac': mac,
+            'gateway_iface': iface,
+            'baseline_ip': base_ip or None,
+            'baseline_mac': base_mac or None,
+            'status': status,
+            'mismatch': mismatch,
+        })
+    except Exception as e:
+        return jsonify({'ok': False, 'error': str(e)}), 500
+
+
+@app.route('/api/arp_spoof/baseline/set', methods=['POST'])
+def api_arp_spoof_baseline_set() -> Response:
+    try:
+        gw, err = _get_default_gateway_ip()
+        if not gw:
+            return jsonify({'ok': False, 'error': err or 'Gateway not found'}), 400
+        mac, iface = _get_neighbor_mac(gw)
+        if not mac:
+            return jsonify({'ok': False, 'error': 'Could not read gateway MAC (try again after traffic)'}), 400
+
+        data = {
+            'gateway_ip': gw,
+            'gateway_mac': mac,
+            'gateway_iface': iface,
+            'set_at': int(time.time()),
+        }
+        if not _arp_baseline_write(data):
+            return jsonify({'ok': False, 'error': 'Failed to write baseline'}), 500
+        return jsonify({'ok': True, 'baseline': data})
+    except Exception as e:
+        return jsonify({'ok': False, 'error': str(e)}), 500
+
+
+@app.route('/api/arp_spoof/baseline/clear', methods=['POST'])
+def api_arp_spoof_baseline_clear() -> Response:
+    try:
+        try:
+            if os.path.exists(_ARP_BASELINE_PATH):
+                os.remove(_ARP_BASELINE_PATH)
+        except Exception:
+            if not _arp_baseline_write({}):
+                return jsonify({'ok': False, 'error': 'Failed to clear baseline'}), 500
+        return jsonify({'ok': True})
+    except Exception as e:
+        return jsonify({'ok': False, 'error': str(e)}), 500
 
 
 _BSSID_RE: re.Pattern[str] = re.compile(r'(?:^|:)([0-9A-Fa-f]{2}(?::[0-9A-Fa-f]{2}){5})(?=:|$|\s)')

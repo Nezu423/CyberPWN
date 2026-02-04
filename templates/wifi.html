@@ -28,27 +28,31 @@
         height:100%;
         margin:0;
         padding:0;
+        background:#000;
         background:var(--nord0);
+        color:#fff;
         color:var(--nord4);
         font-family: Arial, Helvetica, sans-serif;
         overflow-y:auto;
     }
-    body{padding:20px 10px 30px;}
-    .head{display:flex;justify-content:space-between;align-items:center;border-bottom:1px solid var(--nord3);padding-bottom:10px;margin-bottom:18px;}
-    .t1{color:var(--nord4);font-size:14px;font-weight:bold;letter-spacing:1px;text-shadow:0 0 2px var(--nord3);}
-    .back{color:var(--nord8);text-decoration:none;border:1px solid var(--nord3);padding:5px 10px;font-size:11px;background:transparent;}
-    .back:focus{background:var(--nord8);color:var(--nord0);}
-    .payload-list{display:flex;flex-direction:column;gap:12px;margin-top:10px;}
-    .acc-btn{width:100%;background:var(--nord1);color:var(--nord14);border:1px solid var(--nord8);padding:16px;text-align:left;font-size:15px;font-weight:bold;cursor:pointer;transition:background .15s, color .15s;}
-    .acc-btn:focus,.acc-btn:hover{background:var(--nord8);color:var(--nord0);outline:none;}
-    .beacon {color:var(--nord8);border-color:var(--nord8);}
-    .beacon:focus,.beacon:hover {background:var(--nord8);color:var(--nord0);}
-    .vuln {color:var(--nord15);border-color:var(--nord15);}
-    .vuln:focus,.vuln:hover {background:var(--nord15);color:var(--nord0);}
-    .evil {color:var(--nord13);border-color:var(--nord13);}
-    .evil:focus,.evil:hover {background:var(--nord13);color:var(--nord0);}
-    .deauth {color:var(--nord11);border-color:var(--nord11);}
-    .deauth:focus,.deauth:hover {background:var(--nord11);color:var(--nord0);}
+    a{color:#FFD600 !important;text-decoration:none;}
+    a:visited{color:#FFD600 !important;}
+    body{padding:12px 8px 18px;}
+    .head{position:relative;border-bottom:1px solid #202020;border-bottom:1px solid var(--nord3);padding-bottom:10px;margin-bottom:18px;}
+    .t1{display:block;padding-right:92px;color:#fff;color:var(--nord4);font-size:14px;font-weight:bold;letter-spacing:1px;text-shadow:0 0 2px #202020;text-shadow:0 0 2px var(--nord3);}
+    .back{position:absolute;right:0;top:0;color:#00FFE7;color:var(--nord8);text-decoration:none;border:1px solid #202020;border:1px solid var(--nord3);padding:5px 10px;font-size:11px;background:transparent;}
+    .back:focus{background:#00FFE7;background:var(--nord8);color:#000;color:var(--nord0);}
+    .payload-list{margin-top:10px;}
+    .acc-btn{display:block;width:100%;background:#000;background:var(--nord1);color:#00FF5A;color:var(--nord14);border:1px solid #00FFE7;border:1px solid var(--nord8);padding:16px;text-align:left;font-size:15px;font-weight:bold;cursor:pointer;}
+    .acc-btn:focus,.acc-btn:hover{background:#00FFE7;background:var(--nord8);color:#000;color:var(--nord0);outline:none;}
+    .beacon {color:#00FFE7;color:var(--nord8);border-color:#00FFE7;border-color:var(--nord8);}
+    .beacon:focus,.beacon:hover {background:#00FFE7;background:var(--nord8);color:#000;color:var(--nord0);}
+    .vuln {color:#FF00C8;color:var(--nord15);border-color:#FF00C8;border-color:var(--nord15);}
+    .vuln:focus,.vuln:hover {background:#FF00C8;background:var(--nord15);color:#000;color:var(--nord0);}
+    .evil {color:#FFD600;color:var(--nord13);border-color:#FFD600;border-color:var(--nord13);}
+    .evil:focus,.evil:hover {background:#FFD600;background:var(--nord13);color:#000;color:var(--nord0);}
+    .deauth {color:#FF3C00;color:var(--nord11);border-color:#FF3C00;border-color:var(--nord11);}
+    .deauth:focus,.deauth:hover {background:#FF3C00;background:var(--nord11);color:#000;color:var(--nord0);}
 </style>
 <!-- System fonts only for compatibility -->
 </head>
@@ -70,7 +74,7 @@
     </div>
 
     <!-- Interface Status Cards -->
-    <div id="interfaces-container" style="display:flex;flex-direction:column;gap:10px;">
+    <div id="interfaces-container" style="display:block;">
         <div style="color:#ccc;font-size:12px;text-align:center;">Loading interfaces...</div>
     </div>
 </div>
@@ -82,6 +86,7 @@
     padding:12px;
     border-radius:4px;
     font-size:12px;
+    margin-bottom:10px;
 }
 .iface-header {
     display:flex;

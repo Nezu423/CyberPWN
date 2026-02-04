@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=240, height=320, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
 <title>Beacon Sniff Results</title>
 <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;700&display=swap" rel="stylesheet">
 <style>
@@ -24,14 +24,26 @@
       --nord14: #00FF5A;
       --nord15: #FF00C8;
     }
+    html, body {
+      margin: 0;
+      padding: 0;
+      background: #000;
+      color: #fff;
+    }
+    a{color:#FFD600 !important;text-decoration:none;}
+    a:visited{color:#FFD600 !important;}
     body {
+      background: #000;
       background: var(--nord0);
+      color: #fff;
       color: var(--nord4);
       font-family: 'Montserrat', Arial, Helvetica, sans-serif;
       padding: 10px;
     }
     .result {
+      background: #000;
       background: var(--nord0);
+      border: 1px solid #00FFE7;
       border: 1px solid var(--nord8);
       padding: 8px;
       border-radius: 0;
@@ -40,8 +52,11 @@
     .btn {
       margin-top: 12px;
       padding: 8px 16px;
+      background: #000;
       background: var(--nord0);
+      color: #00FFE7;
       color: var(--nord8);
+      border: 1px solid #00FFE7;
       border: 1px solid var(--nord8);
       border-radius: 0;
       font-weight: bold;
@@ -49,7 +64,9 @@
       transition: background .15s, color .15s;
     }
     .btn:hover {
+      background: #00FFE7;
       background: var(--nord8);
+      color: #000;
       color: var(--nord0);
     }
 </style>
