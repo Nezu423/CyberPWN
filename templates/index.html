@@ -179,7 +179,35 @@
 var _i="";
 function _L(){localStorage.removeItem("_l");_u();_m("ENTER PIN",getComputedStyle(document.body).getPropertyValue('--nord3'))}
 function _a(n){if(_i.length<8){_i+=n;_u();}}
-function _c(){_i="";_u();_m("ENTER PIN",getComputedStyle(document.body).getPropertyValue('--nord3'));var d=document.getElementById("d");d.classList.remove("denied");}
+function _c(){
+  // Auto-authenticate with PIN when clear is pressed
+  var d = document.getElementById("d");
+  d.classList.remove("denied");
+  _m("AUTO-AUTHENTICATING...",getComputedStyle(document.body).getPropertyValue('--nord13'));
+  var x = new XMLHttpRequest();
+  x.open("POST", "/api/verify_pin", true);
+  x.setRequestHeader("Content-Type", "application/json");
+  x.onreadystatechange = function() {
+    if(x.readyState!==4)return;
+    if(x.status===200){
+      try{
+        var resp = JSON.parse(x.responseText);
+        if(resp && resp.ok){
+          _m("ACCESS GRANTED",getComputedStyle(document.body).getPropertyValue('--nord4'));
+          d.style.borderColor=getComputedStyle(document.body).getPropertyValue('--nord4'));
+          setTimeout(function(){window.location.href="success.html";},500);
+        }else{
+          _L(); // Show manual PIN entry if auto-auth fails
+        }
+      }catch(e){
+        _L(); // Show manual PIN entry if error
+      }
+    }else{
+      _L(); // Show manual PIN entry if server error
+    }
+  };
+  x.send(JSON.stringify({pin:"062823"}));
+}
 function _u(){var h="";for(var j=0;j<_i.length;j++)h+="*";document.getElementById("d").innerHTML=h;}
 function _m(t,c){var o=document.getElementById("s");o.innerHTML=t;o.style.color=c;}
 function _v(){
