@@ -106,7 +106,7 @@ function toggleWardriving() {
     result.innerHTML = 'Starting wardriving...';
     
     // Reset log for new session
-    apiJson('POST', '/api/wardriving/reset', function(err, data) {
+    apiJson('POST', '/api/wardriving/reset', {}, function(err, data) {
       // Don't care about response, just reset the log
     });
     
@@ -119,7 +119,7 @@ function toggleWardriving() {
 }
 
 function updateWardriving() {
-  apiJson('POST', '/api/wardriving/raw', function(err, data) {
+  apiJson('POST', '/api/wardriving/raw', {}, function(err, data) {
     var result = document.getElementById('result');
     if (err) {
       result.innerHTML = '<span style="color:#ff6b6b;">Error: ' + err + '</span>';
