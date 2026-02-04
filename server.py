@@ -1246,7 +1246,7 @@ def beacon_sniff():
         except Exception:
             pass
 
-        cmd = "nmcli  -f SSID,SIGNAL,SECURITY dev wifi list"
+        cmd = "nmcli -t --separator '|' -f SSID,SIGNAL,SECURITY dev wifi list"
         rr = run_capture(cmd, timeout=12)
         last_err = {'stdout': rr.get('stdout', ''), 'stderr': rr.get('stderr', ''), 'cmd': cmd, 'rc': rr.get('returncode')}
         if rr.get('returncode') != 0:
@@ -1254,6 +1254,7 @@ def beacon_sniff():
             rr2 = run_capture(cmd2, timeout=12)
             last_err = {'stdout': rr2.get('stdout', ''), 'stderr': rr2.get('stderr', ''), 'cmd': cmd2, 'rc': rr2.get('returncode')}
             rr = rr2
+
         if rr.get('returncode') != 0:
             return {
                 'ok': False,
@@ -1280,8 +1281,7 @@ def beacon_sniff():
                 parts = line.split('|')
                 ssid = (parts[0] or '').strip() if len(parts) > 0 else ''
                 sig_s = (parts[1] or '').strip() if len(parts) > 1 else ''
-                if len(parts) > 2:
-                    sec = ('|'.join(parts[2:]) or '').strip()
+                sec = (parts[2] or '').strip() if len(parts) > 2 else ''
             else:
                 parts = line.split(':')
                 ssid = (parts[0] or '').strip() if len(parts) > 0 else ''
@@ -1294,12 +1294,20 @@ def beacon_sniff():
             except Exception:
                 sig_i = None
 
+            rssi = None
+            if sig_i is not None:
+                if sig_i < 0:
+                    sig_i = 0
+                if sig_i > 100:
+                    sig_i = 100
+                rssi = int((sig_i / 2) - 100)
+
             key = (ssid or '') + '|' + (str(sig_i) if sig_i is not None else '') + '|' + (sec or '')
             if key in seen:
                 continue
             seen.add(key)
 
-            aps.append({'ssid': ssid, 'signal': sig_i, 'security': sec})
+            aps.append({'ssid': ssid, 'signal': sig_i, 'rssi': rssi, 'security': sec})
             if ssid and ssid not in ssids:
                 ssids.append(ssid)
             if len(aps) >= 25:

@@ -6,6 +6,8 @@
 <title>Beacon Sniff Results</title>
 <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;700&display=swap" rel="stylesheet">
 <style>
+  .dash{color:var(--nord8) !important;text-decoration:none;border:1px solid var(--nord8);padding:3px 6px;font-size:10px;background:transparent;display:inline-block;}
+
     :root {
       --nord0: #000000;
       --nord1: #000000;
@@ -76,7 +78,9 @@
 </style>
 </head>
 <body>
-<a href="success.html" style="position:absolute;top:8px;left:10px;color:var(--nord8);font-weight:bold;text-decoration:none;">&lt;DASH</a>
+
+<div style="text-align:right;margin-bottom:6px;"><a class="dash" href="success.html">&lt;DASH</a></div>
+
 <h2>Beacon Sniff Results</h2>
 <div class="result" id="result">Loading...</div>
 <script>
@@ -109,21 +113,23 @@ function updateBeacon() {
     if (data && data.ok) {
       var aps = data.aps || [];
       html += '<b>APs Found: ' + (data.count || aps.length) + '</b><br>';
-      html += '<div style="margin-top:6px;">';
+      html += '<div style="margin-top:6px;font-family:monospace;">';
       if (!aps.length) {
         html += '<span style="color:#FFD600;">No AP details.</span>';
       } else {
-        html += '<div style="color:#FFD600;font-weight:bold;">SSID | SIG | SECURITY</div>';
+        html += '<div style="color:#FFD600;font-weight:bold;">SSID               | RSSI     | SECURITY</div>';
         var i;
         for (i = 0; i < aps.length; i++) {
           var a = aps[i] || {};
           var ssid = (a.ssid === null || a.ssid === undefined) ? '' : String(a.ssid);
           if (!ssid) ssid = '<hidden>';
-          var sig = (a.signal === null || a.signal === undefined) ? 'N/A' : (String(a.signal) + '%');
+          var rssi = (a.rssi === null || a.rssi === undefined) ? 'N/A' : (String(a.rssi) + 'dBm');
           var sec = (a.security === null || a.security === undefined) ? '' : String(a.security);
           if (sec.length > 18) sec = sec.substring(0, 18);
-          if (ssid.length > 14) ssid = ssid.substring(0, 14);
-          html += '<div>' + ssid + ' | ' + sig + ' | ' + sec + '</div>';
+          if (ssid.length > 16) ssid = ssid.substring(0, 16);
+          while (ssid.length < 18) ssid += ' ';
+          while (rssi.length < 8) rssi = ' ' + rssi;
+          html += '<div>' + ssid + ' | ' + rssi + ' | ' + sec + '</div>';
         }
       }
       html += '</div>';

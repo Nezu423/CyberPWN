@@ -4,6 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>Interface Status</title>
+    <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;700&display=swap" rel="stylesheet">
     <style>
         :root {
           --nord0: #000000;
@@ -24,57 +25,61 @@
           --nord15: #FF00C8;
         }
         html, body {
-            width: 100%;
-            height: 100%;
             margin: 0;
             padding: 0;
             background: #000;
             background: var(--nord0);
             color: #fff;
             color: var(--nord4);
-            font-family: Arial, Helvetica, sans-serif;
-            overflow-y: auto;
+            font-family: 'Montserrat', Arial, Helvetica, sans-serif;
+            padding: 10px;
+            font-size: 11px;
             -webkit-text-size-adjust: none;
             text-size-adjust: none;
         }
         a{color:#fff !important;text-decoration:none;}
         a:visited{color:#fff !important;}
+        .dash{color:var(--nord8) !important;text-decoration:none;border:1px solid var(--nord8);padding:3px 6px;font-size:10px;background:transparent;display:inline-block;}
+        h2{margin:0 0 8px 0;font-size:12px;color:var(--nord8);}
         .container {
             width: auto;
-            margin: 8px 6px 0 6px;
-            padding: 8px 6px 12px 6px;
+            margin: 0;
+            padding: 8px;
             background: #000;
             background: var(--nord0);
             border-radius: 0;
             border: 1px solid #00FFE7;
             border: 1px solid var(--nord8);
         }
-        h1 {
-            color: #00FFE7;
-            color: var(--nord8);
-            font-size: 16px;
-            margin: 0 0 8px 0;
-            text-align: center;
-            font-family:'Cinzel Decorative', 'UnifrakturCook', serif;
-            text-shadow:0 1px 2px var(--nord3);
+        .result {
+            background: #000;
+            background: var(--nord0);
+            border: 1px solid #00FFE7;
+            border: 1px solid var(--nord8);
+            padding: 8px;
+            border-radius: 0;
+            word-break: break-all;
+            font-size: 10px;
+            line-height: 1.25;
         }
         .iface {
             display: block;
-            margin-bottom: 10px;
-            padding: 10px 4px;
+            margin-bottom: 8px;
+            padding: 8px;
             background: #000;
             background: var(--nord0);
             border-radius: 0;
-            border: 1px solid #202020;
-            border: 1px solid var(--nord3);
-            font-size: 15px;
+            border: 1px solid #00FFE7;
+            border: 1px solid var(--nord8);
+            font-size: 10px;
+            line-height: 1.25;
         }
         .up { color: #00FF5A; color: var(--nord14); font-weight: bold; }
         .down { color: #FF3C00; color: var(--nord11); font-weight: bold; }
         .info {
             color: #00FFE7;
             color: var(--nord8);
-            font-size: 13px;
+            font-size: 10px;
             margin-bottom: 4px;
         }
         .back {
@@ -129,11 +134,9 @@
     </style>
 </head>
 <body>
-    <a href="success.html" style="position:absolute;top:8px;left:10px;color:var(--nord8);font-weight:bold;text-decoration:none;">&lt;DASH</a>
-    <div class="container">
-        <h1>Interface Status</h1>
-        <div id="iface-list">Loading...</div>
-    </div>
+    <div style="text-align:right;margin-bottom:6px;"><a class="dash" href="success.html">&lt; DASH</a></div>
+    <h2>Interface Status</h2>
+    <div class="result" id="iface-list">Loading...</div>
     <script>
     function apiJson(method, url, cb) {
         var xhr = new XMLHttpRequest();
