@@ -1192,12 +1192,16 @@ def api_wardriving_raw():
         if _current_wardriving_log is None:
             _current_wardriving_log = os.path.join(logs_dir, f"wardriving_{time.strftime('%Y-%m-%d_%H-%M-%S')}.log")
         
-        # Write to log file with timestamp
+        # Always write to log file with timestamp
         timestamp = time.strftime('%Y-%m-%d %H:%M:%S')
-        with open(_current_wardriving_log, 'a') as f:
-            f.write(f"\n=== Wardriving Scan - {timestamp} ===\n")
-            f.write(result.get('stdout', ''))
-            f.write("\n")
+        try:
+            with open(_current_wardriving_log, 'a') as f:
+                f.write(f"\n=== Wardriving Scan - {timestamp} ===\n")
+                f.write(result.get('stdout', ''))
+                f.write("\n")
+        except Exception as log_err:
+            # Log error but don't fail the request
+            print(f"Warning: Could not write to log file: {log_err}")
         
         return jsonify({
             'ok': True,

@@ -119,8 +119,11 @@ function toggleWardriving() {
 }
 
 function updateWardriving() {
+  console.log('Updating wardriving...');
   apiJson('POST', '/api/wardriving/raw', {}, function(err, data) {
     var result = document.getElementById('result');
+    console.log('Wardriving response:', err, data);
+    
     if (err) {
       result.innerHTML = '<span style="color:#ff6b6b;">Error: ' + err + '</span>';
       return;
@@ -132,7 +135,9 @@ function updateWardriving() {
       output += data.raw_output || 'No output';
       if (data.log_file) {
         output += '\n\nLogging to: ' + data.log_file;
+        output += '\nLast scan: ' + data.timestamp;
       }
+      output += '\n\nNext scan in 5 seconds...';
       result.innerHTML = esc(output);
     } else {
       result.innerHTML = '<span style="color:#ff6b6b;">Error: ' + ((data && data.error) ? data.error : 'Unknown') + '</span>';
