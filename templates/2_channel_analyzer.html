@@ -3,51 +3,113 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-<title>Channel Analyzer Results</title>
-<link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;700&display=swap" rel="stylesheet">
+<title>Channel Analyzer</title>
 <style>
-    :root {
-      --nord0: #000000;
-      --nord1: #000000;
-      --nord2: #000000;
-      --nord3: #202020;
-      --nord4: #EAEAEA;
-      --nord5: #EAEAEA;
-      --nord6: #EAEAEA;
-      --nord7: #00FFE7;
-      --nord8: #00FFE7;
-      --nord9: #FF00C8;
-      --nord10: #00FFE7;
-      --nord11: #FF3C00;
-      --nord12: #FFD600;
-      --nord13: #FFD600;
-      --nord14: #00FF5A;
-      --nord15: #FF00C8;
+*{box-sizing:border-box}
+html,body{
+  height:100%;
+  width:100%;
+  margin:0;
+  padding:0;
+  background:#000;
+  color:#fff;
+  font-family: Arial, Helvetica, sans-serif;
+  overflow-y:auto;
+}
+body{padding:10px 8px 16px;}
+a{color:#fff !important;text-decoration:none;}
+a:visited{color:#fff !important;}
+.h{position:relative;border-bottom:1px solid #FF00C8;padding-bottom:8px;margin-bottom:10px;}
+.t{display:block;padding-right:88px;color:#fff;font-size:12px;font-weight:bold;letter-spacing:1px;}
+.back{position:absolute;right:0;top:0;color:#fff;text-decoration:none;border:1px solid #FF00C8;padding:3px 6px;font-size:10px;background:transparent;}
+.back:focus{background:#FF00C8;color:#000;}
+.card{border:1px solid #FF00C8;background:#000;padding:10px 8px;margin-bottom:10px;}
+.st{font-size:12px;font-weight:bold;margin-bottom:6px;color:#fff;}
+.ok{color:#fff;}
+.warn{color:#fff;}
+.bad{color:#fff;}
+.dim{color:#bbb;}
+.btn{display:block;width:100%;margin-top:6px;padding:10px 8px;background:#000;color:#fff;border:1px solid #FF00C8;font-size:12px;font-weight:bold;cursor:pointer;}
+.btn:focus,.btn:hover{background:#FF00C8;color:#000;}
+.btn2{border-color:#FF69B4;color:#fff;}
+.btn2:focus,.btn2:hover{background:#FF69B4;color:#000;border-color:#FF69B4;}
+.btn3{border-color:#C71585;color:#fff;}
+.btn3:focus,.btn3:hover{background:#C71585;color:#000;border-color:#C71585;}
+.btn4{border-color:#DA70D6;color:#fff;}
+.btn4:focus,.btn4:hover{background:#DA70D6;color:#000;border-color:#DA70D6;}
+.log{background:#000;border:1px solid #FF00C8;color:#fff;font-size:11px;padding:8px;white-space:pre-wrap;}
+</style>
+</head>
+<body>
+<div class="h">
+  <div class="t">CHANNEL ANALYZER</div>
+  <a class="back" href="success.html">&lt; DASH</a>
+</div>
+
+<div class="card">
+  <div class="st">WiFi Channel Analysis</div>
+  <button class="btn" type="button" onclick="analyzeChannels()">ANALYZE CHANNELS</button>
+  <div id="result" class="log">Click "ANALYZE CHANNELS" to detect WiFi channels...</div>
+</div>
+
+<script>
+function esc(s) {
+  var div = document.createElement('div');
+  div.appendChild(document.createTextNode(s));
+  return div.innerHTML;
+}
+
+function apiJson(method, url, data, callback) {
+  var xhr = new XMLHttpRequest();
+  xhr.open(method, url, true);
+  xhr.setRequestHeader('Content-Type', 'application/json');
+  xhr.onreadystatechange = function() {
+    if (xhr.readyState === 4) {
+      if (xhr.status === 200) {
+        try {
+          var response = JSON.parse(xhr.responseText);
+          callback(null, response);
+        } catch (e) {
+          callback('Invalid JSON response', null);
+        }
+      } else {
+        callback('HTTP ' + xhr.status, null);
+      }
     }
-    html, body {
-      margin: 0;
-      padding: 0;
-      background: #000;
-      color: #fff;
+  };
+  xhr.onerror = function() {
+    callback('Network error', null);
+  };
+  xhr.send(JSON.stringify(data));
+}
+
+function analyzeChannels() {
+  apiJson('POST', '/api/sniffer/channel_analyzer', {}, function(err, data) {
+    var result = document.getElementById('result');
+    
+    if (err) {
+      result.innerHTML = '<span style="color:#ff6b6b;">Error: ' + err + '</span>';
+      return;
     }
-<<<<<<< HEAD
-    a{color:#fff !important;text-decoration:none;}
-    a:visited{color:#fff !important;}
-    .dash{color:var(--nord8) !important;text-decoration:none;border:1px solid var(--nord8);padding:3px 6px;font-size:10px;background:transparent;display:inline-block;}
-=======
-    a{color:#FFD600 !important;text-decoration:none;}
-    a:visited{color:#FFD600 !important;}
->>>>>>> parent of 6c1cdae (testing fix)
-    body {
-      background: #000;
-      background: var(--nord0);
-      color: #fff;
-      color: var(--nord4);
-      font-family: 'Montserrat', Arial, Helvetica, sans-serif;
-      padding: 10px;
+    
+    if (data && data.ok) {
+      var output = '';
+      if (data.channels && data.channels.length > 0) {
+        data.channels.forEach(function(channel) {
+          output += channel + '\n';
+        });
+      } else {
+        output = 'No channel data available';
+      }
+      result.innerHTML = esc(output);
+    } else {
+      result.innerHTML = '<span style="color:#ff6b6b;">Error: ' + ((data && data.error) ? data.error : 'Unknown') + '</span>';
     }
-    .result {
-      background: #000;
+  });
+}
+</script>
+</body>
+</html>
       background: var(--nord0);
       border: 1px solid #00FFE7;
       border: 1px solid var(--nord8);

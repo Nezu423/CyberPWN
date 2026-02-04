@@ -3,181 +3,149 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-<title>Beacon Sniff Results</title>
-<link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;700&display=swap" rel="stylesheet">
+<title>Beacon Sniff</title>
 <style>
-  .dash{color:var(--nord8) !important;text-decoration:none;border:1px solid var(--nord8);padding:3px 6px;font-size:10px;background:transparent;display:inline-block;}
-
-    :root {
-      --nord0: #000000;
-      --nord1: #000000;
-      --nord2: #000000;
-      --nord3: #202020;
-      --nord4: #EAEAEA;
-      --nord5: #EAEAEA;
-      --nord6: #EAEAEA;
-      --nord7: #00FFE7;
-      --nord8: #00FFE7;
-      --nord9: #FF00C8;
-      --nord10: #00FFE7;
-      --nord11: #FF3C00;
-      --nord12: #FFD600;
-      --nord13: #FFD600;
-      --nord14: #00FF5A;
-      --nord15: #FF00C8;
-    }
-    html, body {
-      margin: 0;
-      padding: 0;
-      background: #000;
-      color: #fff;
-    }
-    a{color:#FFD600 !important;text-decoration:none;}
-    a:visited{color:#FFD600 !important;}
-    body {
-      background: #000;
-      background: var(--nord0);
-      color: #fff;
-      color: var(--nord4);
-      font-family: 'Montserrat', Arial, Helvetica, sans-serif;
-      padding: 10px;
-      font-size: 11px;
-    }
-    h2{margin:0 0 8px 0;font-size:12px;color:#00FFE7;}
-    .result {
-      background: #000;
-      background: var(--nord0);
-      border: 1px solid #00FFE7;
-      border: 1px solid var(--nord8);
-      padding: 8px;
-      border-radius: 0;
-      word-break: break-all;
-      font-size: 10px;
-      line-height: 1.25;
-    }
-    .btn {
-      margin-top: 12px;
-      padding: 8px 16px;
-      background: #000;
-      background: var(--nord0);
-      color: #00FFE7;
-      color: var(--nord8);
-      border: 1px solid #00FFE7;
-      border: 1px solid var(--nord8);
-      border-radius: 0;
-      font-weight: bold;
-      cursor: pointer;
-      transition: background .15s, color .15s;
-    }
-    .btn:hover {
-      background: #00FFE7;
-      background: var(--nord8);
-      color: #000;
-      color: var(--nord0);
-    }
+*{box-sizing:border-box}
+html,body{
+  height:100%;
+  width:100%;
+  margin:0;
+  padding:0;
+  background:#000;
+  color:#fff;
+  font-family: Arial, Helvetica, sans-serif;
+  overflow-y:auto;
+}
+body{padding:10px 8px 16px;}
+a{color:#fff !important;text-decoration:none;}
+a:visited{color:#fff !important;}
+.h{position:relative;border-bottom:1px solid #FF00C8;padding-bottom:8px;margin-bottom:10px;}
+.t{display:block;padding-right:88px;color:#fff;font-size:12px;font-weight:bold;letter-spacing:1px;}
+.back{position:absolute;right:0;top:0;color:#fff;text-decoration:none;border:1px solid #FF00C8;padding:3px 6px;font-size:10px;background:transparent;}
+.back:focus{background:#FF00C8;color:#000;}
+.card{border:1px solid #FF00C8;background:#000;padding:10px 8px;margin-bottom:10px;}
+.st{font-size:12px;font-weight:bold;margin-bottom:6px;color:#fff;}
+.ok{color:#fff;}
+.warn{color:#fff;}
+.bad{color:#fff;}
+.dim{color:#bbb;}
+.btn{display:block;width:100%;margin-top:6px;padding:10px 8px;background:#000;color:#fff;border:1px solid #FF00C8;font-size:12px;font-weight:bold;cursor:pointer;}
+.btn:focus,.btn:hover{background:#FF00C8;color:#000;}
+.btn2{border-color:#FF69B4;color:#fff;}
+.btn2:focus,.btn2:hover{background:#FF69B4;color:#000;border-color:#FF69B4;}
+.btn3{border-color:#C71585;color:#fff;}
+.btn3:focus,.btn3:hover{background:#C71585;color:#000;border-color:#C71585;}
+.btn4{border-color:#DA70D6;color:#fff;}
+.btn4:focus,.btn4:hover{background:#DA70D6;color:#000;border-color:#DA70D6;}
+.log{background:#000;border:1px solid #FF00C8;color:#fff;font-size:11px;padding:8px;white-space:pre-wrap;}
+.alert{background:#8B0000;border:1px solid #FF0000;color:#fff;padding:8px;margin-bottom:10px;font-weight:bold;}
 </style>
 </head>
 <body>
+<div class="h">
+  <div class="t">BEACON SNIFF</div>
+  <a class="back" href="success.html">&lt; DASH</a>
+</div>
 
-<div style="text-align:right;margin-bottom:6px;"><a class="dash" href="success.html">&lt;DASH</a></div>
+<div id="openAlert" class="alert" style="display:none;">
+  ⚠️ OPEN NETWORKS DETECTED:<br>
+  <span id="openNetworks"></span>
+</div>
 
-<h2>Beacon Sniff Results</h2>
-<div class="result" id="result">Loading...</div>
+<div class="card">
+  <div class="st">WiFi Networks</div>
+  <button class="btn" type="button" onclick="updateBeacon()">SCAN NOW</button>
+  <div id="result" class="log">Click "SCAN NOW" to detect WiFi networks...</div>
+</div>
+
 <script>
-function esc(str) {
-  return String(str).replace(/[&<>"']/g, function(s) {
-    return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[s];
-  });
+function esc(s) {
+  var div = document.createElement('div');
+  div.appendChild(document.createTextNode(s));
+  return div.innerHTML;
 }
 
-function apiJson(method, url, cb) {
+function apiJson(method, url, data, callback) {
   var xhr = new XMLHttpRequest();
   xhr.open(method, url, true);
+  xhr.setRequestHeader('Content-Type', 'application/json');
   xhr.onreadystatechange = function() {
-    if (xhr.readyState !== 4) return;
-    if (xhr.status < 200 || xhr.status >= 300) {
-      cb(new Error('HTTP ' + xhr.status), null);
-      return;
-    }
-    try {
-      cb(null, JSON.parse(xhr.responseText));
-    } catch (e) {
-      cb(e, null);
+    if (xhr.readyState === 4) {
+      if (xhr.status === 200) {
+        try {
+          var response = JSON.parse(xhr.responseText);
+          callback(null, response);
+        } catch (e) {
+          callback('Invalid JSON response', null);
+        }
+      } else {
+        callback('HTTP ' + xhr.status, null);
+      }
     }
   };
-  xhr.send(null);
+  xhr.onerror = function() {
+    callback('Network error', null);
+  };
+  xhr.send(JSON.stringify(data));
 }
 
 function updateBeacon() {
-  apiJson('POST', '/api/sniffer/beacon', function(err, data) {
-    var html = '';
+  apiJson('POST', '/api/sniffer/beacon', {}, function(err, data) {
+    var result = document.getElementById('result');
+    var openAlert = document.getElementById('openAlert');
+    var openNetworks = document.getElementById('openNetworks');
+    
     if (err) {
-      html = '<span style="color:#BF616A;">Error: ' + err + '</span>';
-      document.getElementById('result').innerHTML = html;
+      result.innerHTML = '<span style="color:#ff6b6b;">Error: ' + err + '</span>';
       return;
     }
+    
     if (data && data.ok) {
-      var aps = data.aps || [];
+      var output = '';
+      var openSSIDs = [];
       
-      // Check for open networks
-      var openNetworks = [];
-      var i;
-      for (i = 0; i < aps.length; i++) {
-        var a = aps[i] || {};
-        var ssid = (a.ssid === null || a.ssid === undefined) ? '' : String(a.ssid);
-        var security = (a.security === null || a.security === undefined) ? '' : String(a.security);
-        // Check if network is open
-        if (security === 'OPEN' || security.toLowerCase() === 'open') {
-          // Extract just the SSID name (remove OPEN suffix if present)
-          var ssidName = ssid.replace(/\s+OPEN\s*$/i, '');
-          openNetworks.push(ssidName);
-        }
-      }
-      
-      // Show alert for open networks
-      if (openNetworks.length > 0) {
-        html += '<div style="background:#8B0000;border:1px solid #FF0000;padding:8px;margin-bottom:10px;border-radius:4px;">';
-        html += '<div style="color:#FF6B6B;font-weight:bold;">⚠ OPEN NETWORKS DETECTED:</div>';
-        html += '<div style="color:#FFA07A;font-size:0.9em;">' + esc(openNetworks.join(', ')) + '</div>';
-        html += '</div>';
-      }
-      
-      html += '<b>APs Found: ' + (data.count || aps.length) + '</b><br>';
-      html += '<div style="margin-top:6px;font-family:monospace;">';
-      if (!aps.length) {
-        html += '<span style="color:#FFD600;">No AP details.</span>';
-        if (data && data.diag && data.diag.sample) {
-          html += '<div style="margin-top:6px;color:#bbb;font-size:9px;">Raw sample:</div>';
-          html += '<div style="color:#888;font-size:9px;white-space:pre-wrap;">' + esc(data.diag.sample.join('\n')) + '</div>';
-        }
+      if (data.aps && data.aps.length > 0) {
+        data.aps.forEach(function(ap) {
+          var line = '';
+          if (ap.ssid) {
+            line += ap.ssid;
+          }
+          if (ap.signal !== undefined) {
+            line += ' Signal: ' + ap.signal + '%';
+          }
+          if (ap.rssi !== undefined) {
+            line += ' (' + ap.rssi + ' dBm)';
+          }
+          if (ap.security) {
+            line += ' ' + ap.security;
+            if (ap.security === 'OPEN') {
+              openSSIDs.push(ap.ssid);
+            }
+          }
+          output += line + '\n';
+        });
       } else {
-        var i;
-        for (i = 0; i < aps.length; i++) {
-          var a = aps[i] || {};
-          var ssid = (a.ssid === null || a.ssid === undefined) ? '' : String(a.ssid);
-          var signal = (a.signal === null || a.signal === undefined) ? 'N/A' : (String(a.signal) + '%');
-          var rssi = (a.rssi === null || a.rssi === undefined) ? 'N/A' : (String(a.rssi) + 'dBm');
-          html += '<div style="margin:0.2rem 0;">';
-          html += '<div style="color:#FFD600;">' + esc(ssid) + '</div>';
-          html += '<div style="color:#888;font-size:0.9em;">Signal: ' + signal + ' (' + rssi + ')</div>';
-          html += '</div>';
-        }
+        output = 'No networks detected';
       }
-      html += '</div>';
+      
+      result.innerHTML = esc(output);
+      
+      // Show open networks alert
+      if (openSSIDs.length > 0) {
+        openNetworks.innerHTML = openSSIDs.join(', ');
+        openAlert.style.display = 'block';
+      } else {
+        openAlert.style.display = 'none';
+      }
     } else {
-      html = '<span style="color:#BF616A;">Error: ' + ((data && data.error) ? data.error : 'Unknown') + '</span>';
-      if (data && data.stdout) {
-        html += '<div style="margin-top:6px;color:#bbb;white-space:pre-wrap;">STDOUT:\n' + String(data.stdout).substring(0, 600) + '</div>';
-      }
-      if (data && data.stderr) {
-        html += '<div style="margin-top:6px;color:#bbb;white-space:pre-wrap;">STDERR:\n' + String(data.stderr).substring(0, 600) + '</div>';
-      }
+      result.innerHTML = '<span style="color:#ff6b6b;">Error: ' + ((data && data.error) ? data.error : 'Unknown') + '</span>';
+      openAlert.style.display = 'none';
     }
-    document.getElementById('result').innerHTML = html;
   });
 }
-setInterval(updateBeacon, 2000);
-updateBeacon();
+
+// Auto-scan every 10 seconds
+setInterval(updateBeacon, 10000);
 </script>
 </body>
 </html>
