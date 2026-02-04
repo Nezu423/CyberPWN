@@ -19,6 +19,9 @@ def parse_log_file(file_path):
                 if not line:
                     continue
                 
+                # Debug: Show each line being processed
+                print(f"Line {line_num:3}: {line}")
+                
                 # Parse plain text format
                 # Look for SSID patterns in plain text
                 ssid = None
@@ -29,14 +32,17 @@ def parse_log_file(file_path):
                     parts = line.split('SSID:')
                     if len(parts) > 1:
                         ssid = parts[1].strip().strip('"\'')
+                        print(f"  -> Found SSID with 'SSID:' pattern: '{ssid}'")
                 elif 'ssid:' in line:
                     # Format: ssid: NetworkName
                     parts = line.split('ssid:')
                     if len(parts) > 1:
                         ssid = parts[1].strip().strip('"\'')
+                        print(f"  -> Found SSID with 'ssid:' pattern: '{ssid}'")
                 elif line.startswith('"') and line.endswith('"'):
                     # Format: "NetworkName"
                     ssid = line.strip('"\'')
+                    print(f"  -> Found SSID in quotes: '{ssid}'")
                 elif 'should_be_open' in line:
                     # Extract SSID from should_be_open lines
                     if 'ssid' in line:
@@ -45,21 +51,26 @@ def parse_log_file(file_path):
                         ssid_match = re.search(r'ssid["\']?\s*[:=]\s*["\']([^"\']+)["\']', line)
                         if ssid_match:
                             ssid = ssid_match.group(1)
+                            print(f"  -> Found SSID in should_be_open line: '{ssid}'")
                 else:
                     # Try to extract from any line that looks like a network name
                     # Skip lines that are clearly not SSIDs
                     if not any(char in line for char in ['{', '}', '[', ']', ',', ':', '=', '(', ')']) and len(line) > 2:
                         if not line.isdigit() and not line.replace('-', '').replace('.', '').isdigit():
                             ssid = line.strip('"\'')
+                            print(f"  -> Found SSID as plain text: '{ssid}'")
                 
                 if not ssid or len(ssid) < 2:
+                    print(f"  -> No SSID found, skipping")
                     continue
                 
                 # Skip common non-SSID entries
                 if ssid.lower() in ['unknown', 'n/a', 'none', 'hidden', 'ssid', 'network']:
+                    print(f"  -> Skipping common non-SSID: '{ssid}'")
                     continue
                 
                 all_ssids.add(ssid)
+                print(f"  -> Added SSID to list: '{ssid}'")
                 
                 # Check if open network
                 is_open = False
@@ -69,18 +80,25 @@ def parse_log_file(file_path):
                 if 'should_be_open' in line and ('true' in line or 'True' in line):
                     is_open = True
                     encryption = "Open"
+                    print(f"  -> Detected as OPEN (should_be_open=true)")
                 elif 'open' in line.lower():
                     is_open = True
                     encryption = "Open"
+                    print(f"  -> Detected as OPEN (contains 'open')")
                 elif 'none' in line.lower() or 'no encryption' in line.lower():
                     is_open = True
                     encryption = "Open"
+                    print(f"  -> Detected as OPEN (no encryption)")
                 elif 'wpa' in line.lower():
                     encryption = "WPA"
                     is_open = False
+                    print(f"  -> Detected as ENCRYPTED (WPA)")
                 elif 'wep' in line.lower():
                     encryption = "WEP"
                     is_open = False
+                    print(f"  -> Detected as ENCRYPTED (WEP)")
+                else:
+                    print(f"  -> Encryption unknown, defaulting to encrypted")
                 
                 # Extract signal strength
                 signal = None
@@ -88,12 +106,14 @@ def parse_log_file(file_path):
                 signal_match = re.search(r'(-?\d+)\s*dBm', line)
                 if signal_match:
                     signal = int(signal_match.group(1))
+                    print(f"  -> Signal: {signal} dBm")
                 
                 # Extract channel
                 channel = None
                 channel_match = re.search(r'channel[:\s]+(\d+)', line, re.IGNORECASE)
                 if channel_match:
                     channel = int(channel_match.group(1))
+                    print(f"  -> Channel: {channel}")
                 
                 network_info = {
                     'ssid': ssid,
@@ -106,8 +126,12 @@ def parse_log_file(file_path):
                 
                 if is_open:
                     open_networks.append(network_info)
+                    print(f"  -> Added to OPEN networks list")
                 else:
                     encrypted_networks.append(network_info)
+                    print(f"  -> Added to ENCRYPTED networks list")
+                
+                print()  # Empty line for readability
                         
     except FileNotFoundError:
         print(f"Error: File {file_path} not found")
