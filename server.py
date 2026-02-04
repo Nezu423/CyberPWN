@@ -19,6 +19,11 @@ template_dir = os.path.join(base_dir, 'templates')
 app = Flask(__name__, template_folder=template_dir)
 
 _ARP_BASELINE_PATH = os.path.join(base_dir, 'arp_baseline.json')
+try:
+    if not os.access(base_dir, os.W_OK):
+        _ARP_BASELINE_PATH = os.path.join('/tmp', 'cyberpwn_arp_baseline.json')
+except Exception:
+    _ARP_BASELINE_PATH = os.path.join('/tmp', 'cyberpwn_arp_baseline.json')
 
 app.secret_key = hashlib.sha256((base_dir + ":" + "cyberpwn").encode()).hexdigest()
 app.config.update(
@@ -142,18 +147,18 @@ def _get_default_gateway_ip() -> tuple[str | None, str | None]:
     r = run_capture("ip route | grep default | head -1", timeout=2)
     if r.get('returncode') != 0 or not (r.get('stdout') or '').strip():
         return None, 'No default gateway found'
+
     parts = (r.get('stdout') or '').strip().split()
+    gw = None
     if 'via' in parts:
         idx = parts.index('via')
         if idx + 1 < len(parts):
             gw = parts[idx + 1].strip()
-        else:
-            return None, 'Could not parse gateway'
     else:
         if len(parts) >= 3:
             gw = parts[2].strip()
-        else:
-            return None, 'Could not parse gateway'
+    if not gw:
+        return None, 'Could not parse gateway'
 
     try:
         ipaddress.ip_address(gw)
@@ -162,19 +167,53 @@ def _get_default_gateway_ip() -> tuple[str | None, str | None]:
     return gw, None
 
 
+def _prime_arp(ip: str) -> None:
+    ip = (ip or '').strip()
+    if not ip:
+        return
+    try:
+        run_capture(f"ping -c 1 -W 1 {ip} >/dev/null 2>&1", timeout=2)
+    except Exception:
+        pass
+
+
+def _get_proc_arp_mac(ip: str) -> str | None:
+    ip = (ip or '').strip()
+    if not ip:
+        return None
+    try:
+        if not os.path.exists('/proc/net/arp'):
+            return None
+        with open('/proc/net/arp', 'r', encoding='utf-8', errors='replace') as f:
+            lines = f.read().splitlines()
+        for line in lines[1:]:
+            parts = line.split()
+            if len(parts) < 4:
+                continue
+            if parts[0] != ip:
+                continue
+            mac = (parts[3] or '').strip()
+            if re.match(r"^[0-9A-Fa-f]{2}(?::[0-9A-Fa-f]{2}){5}$", mac):
+                return mac.lower()
+        return None
+    except Exception:
+        return None
+
+
 def _get_neighbor_mac(ip: str) -> tuple[str | None, str | None]:
     ip = (ip or '').strip()
     if not ip:
         return None, None
     mac = None
+
     iface = None
 
     r = run_capture(f"ip neigh show {ip} 2>/dev/null", timeout=2)
     out = (r.get('stdout') or '').strip()
-    m = re.search(r"\\bdev\\s+(\\S+)", out)
+    m = re.search(r"\bdev\s+(\S+)", out)
     if m:
         iface = m.group(1)
-    m = re.search(r"\\blladdr\\s+([0-9A-Fa-f:]{17})", out)
+    m = re.search(r"\blladdr\s+([0-9A-Fa-f:]{17})", out)
     if m:
         mac = m.group(1).lower()
 
@@ -186,6 +225,9 @@ def _get_neighbor_mac(ip: str) -> tuple[str | None, str | None]:
     m2 = re.search(r"([0-9A-Fa-f]{2}(?::[0-9A-Fa-f]{2}){5})", out2)
     if m2:
         mac = m2.group(1).lower()
+
+    if not mac:
+        mac = _get_proc_arp_mac(ip)
     return mac, iface
 
 
@@ -200,15 +242,15 @@ def _arp_baseline_read() -> dict:
         return {}
 
 
-def _arp_baseline_write(data: dict) -> bool:
+def _arp_baseline_write(data: dict) -> tuple[bool, str]:
     try:
         tmp = _ARP_BASELINE_PATH + '.tmp'
         with open(tmp, 'w', encoding='utf-8') as f:
             json.dump(data, f)
         os.replace(tmp, _ARP_BASELINE_PATH)
-        return True
-    except Exception:
-        return False
+        return True, ''
+    except Exception as e:
+        return False, str(e)
 
 
 @app.route('/api/url_sniffer', methods=['POST'])
@@ -453,13 +495,13 @@ def get_interface_status(iface='wlan0'):
         if 'state UP' in result.get('stdout', ''):
             status['up'] = True
         # Get MAC address
-        mac_match = re.search(r'link/ether\s+([0-9a-f:]+)', result.get('stdout', ''), re.I)
+        mac_match = re.search(r"link/ether\s+([0-9a-f:]+)", result.get('stdout', ''), re.I)
         if mac_match:
             status['mac'] = mac_match.group(1).upper()
         # Get IP address
         result = run_capture(f"ip addr show {iface} 2>/dev/null | grep 'inet '", timeout=2)
         if result.get('returncode') == 0:
-            ip_match = re.search(r'inet\s+([0-9.]+)', result.get('stdout', ''))
+            ip_match = re.search(r"inet\s+([0-9.]+)", result.get('stdout', ''))
             if ip_match:
                 status['ip'] = ip_match.group(1)
         # Get wireless info using iwconfig
@@ -628,6 +670,7 @@ def api_arp_spoof_status() -> Response:
         gw, err = _get_default_gateway_ip()
         if not gw:
             return jsonify({'ok': False, 'error': err or 'Gateway not found'}), 400
+        _prime_arp(gw)
         mac, iface = _get_neighbor_mac(gw)
 
         baseline = _arp_baseline_read()
@@ -652,6 +695,7 @@ def api_arp_spoof_status() -> Response:
             'gateway_ip': gw,
             'gateway_mac': mac,
             'gateway_iface': iface,
+            'baseline_path': _ARP_BASELINE_PATH,
             'baseline_ip': base_ip or None,
             'baseline_mac': base_mac or None,
             'status': status,
@@ -667,9 +711,34 @@ def api_arp_spoof_baseline_set() -> Response:
         gw, err = _get_default_gateway_ip()
         if not gw:
             return jsonify({'ok': False, 'error': err or 'Gateway not found'}), 400
-        mac, iface = _get_neighbor_mac(gw)
+
+        _prime_arp(gw)
+        mac = None
+        iface = None
+        tries = 0
+        while tries < 4 and not mac:
+            mac, iface = _get_neighbor_mac(gw)
+            if mac:
+                break
+            _prime_arp(gw)
+            time.sleep(0.25)
+            tries += 1
+
         if not mac:
-            return jsonify({'ok': False, 'error': 'Could not read gateway MAC (try again after traffic)'}), 400
+            neigh = run_capture(f"ip neigh show {gw} 2>/dev/null", timeout=2)
+            arp = run_capture(f"arp -n {gw} 2>/dev/null | head -2", timeout=2)
+            proc_mac = _get_proc_arp_mac(gw)
+            return jsonify({
+                'ok': False,
+                'error': 'Could not read gateway MAC (try again after some traffic)',
+                'gateway_ip': gw,
+                'baseline_path': _ARP_BASELINE_PATH,
+                'debug': {
+                    'ip_neigh': (neigh.get('stdout') or neigh.get('stderr') or '').strip()[:300],
+                    'arp': (arp.get('stdout') or arp.get('stderr') or '').strip()[:300],
+                    'proc_arp_mac': proc_mac,
+                }
+            }), 400
 
         data = {
             'gateway_ip': gw,
@@ -677,9 +746,10 @@ def api_arp_spoof_baseline_set() -> Response:
             'gateway_iface': iface,
             'set_at': int(time.time()),
         }
-        if not _arp_baseline_write(data):
-            return jsonify({'ok': False, 'error': 'Failed to write baseline'}), 500
-        return jsonify({'ok': True, 'baseline': data})
+        ok_w, err_w = _arp_baseline_write(data)
+        if not ok_w:
+            return jsonify({'ok': False, 'error': 'Failed to write baseline', 'baseline_path': _ARP_BASELINE_PATH, 'debug': {'write_error': err_w}}), 500
+        return jsonify({'ok': True, 'baseline': data, 'baseline_path': _ARP_BASELINE_PATH})
     except Exception as e:
         return jsonify({'ok': False, 'error': str(e)}), 500
 
@@ -691,9 +761,10 @@ def api_arp_spoof_baseline_clear() -> Response:
             if os.path.exists(_ARP_BASELINE_PATH):
                 os.remove(_ARP_BASELINE_PATH)
         except Exception:
-            if not _arp_baseline_write({}):
-                return jsonify({'ok': False, 'error': 'Failed to clear baseline'}), 500
-        return jsonify({'ok': True})
+            ok_w, err_w = _arp_baseline_write({})
+            if not ok_w:
+                return jsonify({'ok': False, 'error': 'Failed to clear baseline', 'baseline_path': _ARP_BASELINE_PATH, 'debug': {'write_error': err_w}}), 500
+        return jsonify({'ok': True, 'baseline_path': _ARP_BASELINE_PATH})
     except Exception as e:
         return jsonify({'ok': False, 'error': str(e)}), 500
 
@@ -815,25 +886,65 @@ def interface_down(iface) -> Response:
 def beacon_sniff():
     """Capture and parse WiFi beacon frames to extract SSIDs."""
     try:
-        r = run_capture("nmcli -t -f SSID,SIGNAL,CHAN,SECURITY dev wifi list 2>/dev/null", timeout=10)
+        r = run_capture("nmcli -t -f SSID,BSSID,SIGNAL,CHAN,SECURITY dev wifi list 2>/dev/null", timeout=10)
         if r.get('returncode') != 0:
             return {'ok': False, 'error': 'nmcli scan failed', 'stdout': r.get('stdout', ''), 'stderr': r.get('stderr', '')}
+        bssid_re = re.compile(r"([0-9A-Fa-f]{2}(?::[0-9A-Fa-f]{2}){5})")
+        aps = []
         ssids = []
-        seen = set()
+        seen_key = set()
+
         for line in (r.get('stdout') or '').split('\n'):
+            line = (line or '').strip()
             if not line:
                 continue
-            parts = line.split(':')
-            if not parts:
+
+            m = bssid_re.search(line)
+            if not m:
                 continue
-            ssid = (parts[0] or '').strip()
-            if not ssid or ssid in seen:
+            bssid = (m.group(1) or '').lower()
+            ssid = (line[:m.start()] or '').rstrip(':').strip()
+            tail = (line[m.end():] or '')
+            if tail.startswith(':'):
+                tail = tail[1:]
+            tail_parts = tail.split(':')
+
+            signal = (tail_parts[0] or '').strip() if len(tail_parts) > 0 else ''
+            chan = (tail_parts[1] or '').strip() if len(tail_parts) > 1 else ''
+            sec = (':'.join(tail_parts[2:]) or '').strip() if len(tail_parts) > 2 else ''
+
+            sig_i = None
+            try:
+                sig_i = int(signal)
+            except Exception:
+                sig_i = None
+            rssi = None
+            if sig_i is not None:
+                if sig_i < 0:
+                    sig_i = 0
+                if sig_i > 100:
+                    sig_i = 100
+                rssi = int((sig_i / 2) - 100)
+
+            key = bssid + '|' + (ssid or '')
+            if key in seen_key:
                 continue
-            seen.add(ssid)
-            ssids.append(ssid)
-            if len(ssids) >= 20:
+            seen_key.add(key)
+
+            aps.append({
+                'ssid': ssid,
+                'bssid': bssid,
+                'signal': sig_i,
+                'rssi': rssi,
+                'channel': chan,
+                'security': sec,
+            })
+            if ssid and ssid not in ssids:
+                ssids.append(ssid)
+            if len(aps) >= 20:
                 break
-        return {'ok': True, 'ssids': ssids, 'count': len(ssids), 'note': 'Managed-mode scan'}
+
+        return {'ok': True, 'ssids': ssids, 'count': len(aps), 'aps': aps, 'note': 'Managed-mode scan'}
     except Exception as e:
         return {
             'ok': False,

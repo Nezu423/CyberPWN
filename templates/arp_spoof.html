@@ -67,7 +67,18 @@ function api(method, url, body, cb){
   x.timeout=15000;
   x.onreadystatechange=function(){
     if(x.readyState!==4) return;
-    if(x.status<200 || x.status>=300){ cb(new Error('HTTP '+x.status), null); return; }
+    if(x.status<200 || x.status>=300){
+      var msg='HTTP '+x.status;
+      try{
+        var d=JSON.parse(x.responseText);
+        if(d && d.error) msg = d.error;
+        if(d && d.debug){
+          msg += "\n\n"+JSON.stringify(d.debug);
+        }
+      }catch(e){}
+      cb(new Error(msg), null);
+      return;
+    }
     try{ cb(null, JSON.parse(x.responseText)); }
     catch(e){ cb(e, null); }
   };
