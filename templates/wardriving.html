@@ -116,11 +116,16 @@ function toggleWardriving() {
     btn.textContent = 'Stop Wardriving';
     result.innerHTML = 'Starting wardriving...';
     
+    // Reset log for new session
+    apiJson('POST', '/api/wardriving/reset', function(err, data) {
+      // Don't care about response, just reset the log
+    });
+    
     // Get initial scan
     updateWardriving();
     
     // Set up interval for continuous scanning
-    wardrivingInterval = setInterval(updateWardriving, 5000);
+    wardrivingInterval = setInterval(updateWardriving, 10000);
   }
 }
 

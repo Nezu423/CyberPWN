@@ -45,6 +45,7 @@ _UNAUTH_API_PATHS = {
     '/api/verify_pin',
     '/api/sniffer/beacon',
     '/api/wardriving/raw',
+    '/api/wardriving/reset',
 }
 
 _IFACE_RE: re.Pattern[str] = re.compile(r'^[a-zA-Z0-9_.:-]{1,20}$')
@@ -1158,9 +1159,20 @@ def channel_analyzer():
 
 
 # --- Sniffer API Routes ---
+# Global variable to track current log file
+_current_wardriving_log = None
+
+@app.route('/api/wardriving/reset', methods=['POST'])
+def api_wardriving_reset():
+    """Reset wardriving log for new session."""
+    global _current_wardriving_log
+    _current_wardriving_log = None
+    return jsonify({'ok': True, 'message': 'Log reset for new session'})
+
 @app.route('/api/wardriving/raw', methods=['POST'])
 def api_wardriving_raw():
     """Return raw nmcli output for wardriving and log to file."""
+    global _current_wardriving_log
     try:
         # Run nmcli dev wifi list and return raw output
         cmd = "nmcli dev wifi list"
@@ -1170,12 +1182,13 @@ def api_wardriving_raw():
         logs_dir = os.path.join(base_dir, 'CyberPWN', 'logs')
         os.makedirs(logs_dir, exist_ok=True)
         
-        # Create log file with current date and time
-        log_file = os.path.join(logs_dir, f"wardriving_{time.strftime('%Y-%m-%d_%H-%M-%S')}.log")
+        # Create log file with current date and time (only once per session)
+        if _current_wardriving_log is None:
+            _current_wardriving_log = os.path.join(logs_dir, f"wardriving_{time.strftime('%Y-%m-%d_%H-%M-%S')}.log")
         
         # Write to log file with timestamp
         timestamp = time.strftime('%Y-%m-%d %H:%M:%S')
-        with open(log_file, 'a') as f:
+        with open(_current_wardriving_log, 'a') as f:
             f.write(f"\n=== Wardriving Scan - {timestamp} ===\n")
             f.write(result.get('stdout', ''))
             f.write("\n")
@@ -1185,7 +1198,7 @@ def api_wardriving_raw():
             'raw_output': result.get('stdout', ''),
             'stderr': result.get('stderr', ''),
             'timestamp': timestamp,
-            'log_file': log_file
+            'log_file': _current_wardriving_log
         })
     except Exception as e:
         return jsonify({'ok': False, 'error': str(e)}), 500
