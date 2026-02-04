@@ -1634,49 +1634,85 @@ def api_server_info() -> Response:
     """Get server information including IP address."""
     try:
         import socket
+        import subprocess
+        import re
         
-        # Get local IP addresses
-        hostname = socket.gethostname()
-        local_ip = socket.gethostbyname(hostname)
-        
-        # Try to get all network interfaces
-        ips = []
+        # Method 1: Use ip command to get network interfaces (Armbian/Linux)
+        ipv4_ips = []
         try:
-            # Get all network interfaces
+            result = subprocess.run(['ip', 'addr', 'show'], capture_output=True, text=True, timeout=5)
+            if result.returncode == 0:
+                # Parse ip addr output for IPv4 addresses
+                for line in result.stdout.split('\n'):
+                    if 'inet ' in line and not line.strip().startswith('127.'):
+                        # Extract IPv4 address (format: inet 192.168.1.100/24)
+                        match = re.search(r'inet\s+(\d+\.\d+\.\d+\.\d+)', line)
+                        if match:
+                            ip = match.group(1)
+                            if ip not in ipv4_ips:
+                                ipv4_ips.append(ip)
+        except Exception as e:
+            print(f"Error running ip command: {e}")
+        
+        # Method 2: Fallback to socket.getaddrinfo if ip command fails
+        if not ipv4_ips:
+            try:
+                hostname = socket.gethostname()
+                for interface in socket.getaddrinfo(hostname, None):
+                    ip = interface[4][0]
+                    if ':' not in ip and not ip.startswith('127.') and not ip.startswith('fe80'):
+                        if ip not in ipv4_ips:
+                            ipv4_ips.append(ip)
+            except Exception as e:
+                print(f"Error with socket.getaddrinfo: {e}")
+        
+        # Method 3: Last resort - try to connect to external service to get local IP
+        if not ipv4_ips:
+            try:
+                # Create a socket to connect to an external service
+                s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+                s.connect(("8.8.8.8", 80))
+                local_ip = s.getsockname()[0]
+                s.close()
+                if local_ip and not local_ip.startswith('127.'):
+                    ipv4_ips.append(local_ip)
+            except Exception as e:
+                print(f"Error with external connection: {e}")
+        
+        # Add localhost if no other IPs found
+        if not ipv4_ips:
+            ipv4_ips = ['127.0.0.1']
+        
+        # Set primary IP to first IPv4 address
+        primary_ip = ipv4_ips[0]
+        
+        # Get all IPs for completeness (including IPv6)
+        all_ips = ipv4_ips.copy()
+        try:
+            hostname = socket.gethostname()
             for interface in socket.getaddrinfo(hostname, None):
                 ip = interface[4][0]
-                if ip not in ips and not ip.startswith('127.') and not ip.startswith('fe80'):
-                    # Prioritize IPv4 addresses
-                    if ':' not in ip:  # IPv4 address
-                        ips.insert(0, ip)  # Add IPv4 to front
-                    else:  # IPv6 address
-                        ips.append(ip)
+                if ip not in all_ips and not ip.startswith('127.') and not ip.startswith('fe80'):
+                    all_ips.append(ip)
         except Exception:
             pass
         
-        # Add localhost if no other IPs found
-        if not ips:
-            ips = ['127.0.0.1']
-        
-        # Filter out IPv6 addresses for primary IP
-        ipv4_ips = [ip for ip in ips if ':' not in ip]
-        primary_ip = ipv4_ips[0] if ipv4_ips else ips[0]
-        
         # Check if server is bound to primary IP
         primary_ip_expected = '192.168.4.1'
-        is_primary_bound = primary_ip_expected in ips
+        is_primary_bound = primary_ip_expected in all_ips
         
         return jsonify({
             'ok': True,
-            'hostname': hostname,
+            'hostname': socket.gethostname(),
             'primary_ip': primary_ip,
-            'all_ips': ips,
+            'all_ips': all_ips,
             'ipv4_ips': ipv4_ips,
             'port': 5000,
             'access_urls': [f"http://{ip}:5000" for ip in ipv4_ips],  # Only IPv4 URLs
             'bound_to_primary': is_primary_bound,
             'expected_primary': primary_ip_expected,
-            'binding_status': 'primary' if is_primary_bound else 'fallback'
+            'binding_status': 'primary' if is_primary_bound else 'fallback',
+            'detection_method': 'ip_command' if len(ipv4_ips) > 0 else 'socket'
         })
         
     except Exception as e:

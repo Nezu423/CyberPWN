@@ -51,6 +51,8 @@ try:
         print(f'All IPs: {\", \".join(data[\"all_ips\"])}')
     print(f'Binding Status: {data.get(\"binding_status\", \"Unknown\")}')
     print(f'Expected Primary: {data.get(\"expected_primary\", \"Unknown\")}')
+    if data.get('detection_method'):
+        print(f'Detection Method: {data.get(\"detection_method\", \"Unknown\")}')
 except Exception as e:
     print(f'Parse Error: {e}')
 "
@@ -192,6 +194,12 @@ show_system_stats() {
         local temp_c=$(awk "BEGIN {printf \"%.1f\", $temp/1000}" <<< "$temp")
         echo -e "CPU Temp: ${YELLOW}${temp_c}°C${NC}"
     fi
+    
+    # Uptime (if available)
+    if command -v uptime >/dev/null 2>&1; then
+        local uptime=$(uptime -p 2>/dev/null | awk '{print $3,$4}' | tr -d ',')
+        echo -e "Uptime: ${YELLOW}${uptime}${NC}"
+    fi
 }
 
 # Function to show active processes
@@ -218,12 +226,14 @@ show_processes() {
         echo -e "${GREEN}nmap (network scanning)${NC}"
     fi
     
-    # Check for WiFi interface
+    # Check for WiFi interface (Armbian)
     if command -v iwconfig >/dev/null 2>&1; then
         local wifi_iface=$(iwconfig 2>/dev/null | grep -E "^[a-zA-Z0-9]+" | awk '{print $1}' | head -1)
         if [ -n "$wifi_iface" ]; then
             local wifi_ssid=$(iwgetid "$wifi_iface" 2>/dev/null | awk -F '"' '{print $2}')
             local wifi_ip=$(ip addr show "$wifi_iface" 2>/dev/null | grep "inet " | awk '{print $2}' | cut -d/ -f1 | head -1)
+            local wifi_signal=$(iwconfig "$wifi_iface" 2>/dev/null | awk -F= '/Signal level/ {print $3}' | awk '{print $1}' | head -1)
+            
             echo -e "${CYAN}WiFi Interface: ${wifi_iface}${NC}"
             if [ -n "$wifi_ssid" ]; then
                 echo -e "${CYAN}Connected to: ${wifi_ssid}${NC}"
@@ -231,6 +241,18 @@ show_processes() {
             if [ -n "$wifi_ip" ]; then
                 echo -e "${CYAN}IP Address: ${wifi_ip}${NC}"
             fi
+            if [ -n "$wifi_signal" ]; then
+                echo -e "${CYAN}Signal: ${wifi_signal} dBm${NC}"
+            fi
+        fi
+    fi
+    
+    # Check for nmcli (WiFi management on Armbian)
+    if command -v nmcli >/dev/null 2>&1; then
+        if pgrep nmcli >/dev/null 2>&1; then
+            echo -e "${GREEN}nmcli (WiFi management)${NC}"
+        else
+            echo -e "${YELLOW}nmcli available but not running${NC}"
         fi
     fi
     
