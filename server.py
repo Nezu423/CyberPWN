@@ -1022,38 +1022,15 @@ def beacon_sniff():
         note = ''
         last_err = {'stdout': '', 'stderr': '', 'cmd': '', 'rc': None}
 
-        # Check if nmcli is available
-        nmcli_check = run_capture("which nmcli 2>/dev/null", timeout=2)
-        if nmcli_check.get('returncode') != 0:
-            # Fallback for Windows systems without nmcli
-            return {
-                'ok': True,
-                'ssids': ['TestNetwork1', 'TestNetwork2', 'TestAP'],
-                'count': 3,
-                'aps': [
-                    {'ssid': 'TestNetwork1', 'signal': 85, 'rssi': -58, 'security': 'WPA2'},
-                    {'ssid': 'TestNetwork2', 'signal': 72, 'rssi': -64, 'security': 'WPA2'},
-                    {'ssid': 'TestAP', 'signal': 60, 'rssi': -70, 'security': 'Open'}
-                ],
-                'note': 'Demo data (nmcli not available on this system)',
-                'diag': {'cmd': 'nmcli', 'rc': 255, 'stderr': 'nmcli not available - showing demo data'}
-            }
-
         try:
             run_capture("nmcli dev wifi rescan 2>/dev/null", timeout=8)
             time.sleep(0.4)
         except Exception:
             pass
 
-        cmd = "nmcli -t -f SSID,SIGNAL,SECURITY dev wifi list"
+        cmd = "nmcli dev wifi list"
         rr = run_capture(cmd, timeout=12)
         last_err = {'stdout': rr.get('stdout', ''), 'stderr': rr.get('stderr', ''), 'cmd': cmd, 'rc': rr.get('returncode')}
-        if rr.get('returncode') != 0:
-            cmd2 = "nmcli -t --separator '|' -f SSID,SIGNAL,SECURITY dev wifi list"
-            rr2 = run_capture(cmd2, timeout=12)
-            last_err = {'stdout': rr2.get('stdout', ''), 'stderr': rr2.get('stderr', ''), 'cmd': cmd2, 'rc': rr2.get('returncode')}
-            rr = rr2
-
         if rr.get('returncode') != 0:
             return {
                 'ok': False,
@@ -1067,60 +1044,88 @@ def beacon_sniff():
         ssids: list[str] = []
         seen = set()
 
-        for line in (rr.get('stdout') or '').splitlines():
+        lines = (rr.get('stdout') or '').splitlines()
+        
+        # Skip header lines (look for line with 'IN-USE' or 'SSID')
+        data_start = 0
+        for i, line in enumerate(lines):
+            if 'IN-USE' in line and 'SSID' in line:
+                data_start = i + 1
+                break
+        
+        for line in lines[data_start:]:
             line = (line or '').strip()
             if not line:
                 continue
-            # Skip header lines that contain 'IN-USE' or 'SSID'
-            if 'IN-USE' in line or line.startswith('SSID'):
+            
+            # Parse tabular output: IN-USE  SSID  MODE  CHAN  RATE  SIGNAL  SECURITY
+            parts = line.split()
+            if len(parts) < 7:
                 continue
-
+            
+            # Extract SSID (might contain spaces, look for signal pattern)
             ssid = ''
-            sig_s = ''
-            sec = ''
-
-            if '|' in line:
-                parts = line.split('|')
-                ssid = (parts[0] or '').strip() if len(parts) > 0 else ''
-                sig_s = (parts[1] or '').strip() if len(parts) > 1 else ''
-                sec = (parts[2] or '').strip() if len(parts) > 2 else ''
+            signal_str = ''
+            security = ''
+            
+            # Find signal (looks like '▂▄▆█' or numeric)
+            for i, part in enumerate(parts):
+                # Check for signal bars (unicode blocks)
+                if any(c in '▂▄▆█' for c in part):
+                    signal_str = part
+                    # Security is usually after signal
+                    if i + 1 < len(parts):
+                        security = ' '.join(parts[i+1:])
+                    # SSID is everything before mode
+                    ssid = ' '.join(parts[1:i])
+                    break
+                # Check for numeric signal
+                elif part.isdigit() and 0 <= int(part) <= 100:
+                    signal_str = part
+                    if i + 1 < len(parts):
+                        security = ' '.join(parts[i+1:])
+                    ssid = ' '.join(parts[1:i])
+                    break
+            
+            if not ssid:
+                continue
+            
+            # Convert signal to numeric if it's bars
+            signal_bars = signal_str
+            signal_num = None
+            if signal_str in '▂▄▆█':
+                # Convert bars to percentage
+                bar_values = {'': 0, ' ': 0, '▂': 25, '▄': 50, '▆': 75, '█': 100}
+                signal_num = bar_values.get(signal_str, 50)
             else:
-                parts = line.split()
-                # Expect at least 3 parts: SSID SIGNAL SECURITY...
-                if len(parts) >= 3:
-                    ssid = parts[0]
-                    sig_s = parts[1]
-                    sec = ' '.join(parts[2:])
-                else:
-                    # Not enough fields; skip
-                    continue
-
-            sig_i = None
-            try:
-                sig_i = int(sig_s)
-            except Exception:
-                sig_i = None
-
+                try:
+                    signal_num = int(signal_str)
+                except:
+                    signal_num = 50
+            
+            # Calculate RSSI (dBm)
             rssi = None
-            if sig_i is not None:
-                if sig_i < 0:
-                    sig_i = 0
-                if sig_i > 100:
-                    sig_i = 100
-                rssi = int((sig_i / 2) - 100)
-
-            key = (ssid or '') + '|' + (str(sig_i) if sig_i is not None else '') + '|' + (sec or '')
+            if signal_num is not None:
+                rssi = int((signal_num / 2) - 100)
+            
+            key = ssid + '|' + str(signal_num) + '|' + security
             if key in seen:
                 continue
             seen.add(key)
-
-            aps.append({'ssid': ssid, 'signal': sig_i, 'rssi': rssi, 'security': sec})
+            
+            aps.append({
+                'ssid': ssid,
+                'signal': signal_num,
+                'signal_bars': signal_bars,
+                'rssi': rssi,
+                'security': security
+            })
             if ssid and ssid not in ssids:
                 ssids.append(ssid)
             if len(aps) >= 25:
                 break
 
-        note = 'Managed-mode scan (SSID/SIGNAL/SECURITY)'
+        note = 'Managed-mode scan with signal bars'
 
         return {
             'ok': True,
@@ -1133,7 +1138,7 @@ def beacon_sniff():
                 'rc': last_err.get('rc'),
                 'stderr': (last_err.get('stderr') or '')[:300],
                 'stdout': (last_err.get('stdout') or '')[:300],
-                'sample': (rr.get('stdout') or '').splitlines()[:5]
+                'sample': lines[:5]
             }
         }
     except Exception as e:
