@@ -103,7 +103,7 @@ function toggleWardriving() {
     // Start wardriving
     isRunning = true;
     btn.textContent = 'Stop Wardriving';
-    result.innerHTML = 'Starting wardriving...';
+    result.innerHTML = 'Starting continuous wardriving...';
     
     // Reset log for new session
     apiJson('POST', '/api/wardriving/reset', {}, function(err, data) {
@@ -113,8 +113,8 @@ function toggleWardriving() {
     // Get initial scan
     updateWardriving();
     
-    // Set up interval for continuous scanning
-    wardrivingInterval = setInterval(updateWardriving, 10000);
+    // Set up interval for continuous scanning (every 5 seconds for more frequent updates)
+    wardrivingInterval = setInterval(updateWardriving, 5000);
   }
 }
 
@@ -130,6 +130,9 @@ function updateWardriving() {
       var timestamp = new Date().toLocaleString();
       var output = '=== Wardriving Scan - ' + timestamp + ' ===\n\n';
       output += data.raw_output || 'No output';
+      if (data.log_file) {
+        output += '\n\nLogging to: ' + data.log_file;
+      }
       result.innerHTML = esc(output);
     } else {
       result.innerHTML = '<span style="color:#ff6b6b;">Error: ' + ((data && data.error) ? data.error : 'Unknown') + '</span>';
