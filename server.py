@@ -44,8 +44,6 @@ PIN_SHA256 = hashlib.sha256("062823".encode()).hexdigest()
 _UNAUTH_API_PATHS = {
     '/api/verify_pin',
     '/api/sniffer/beacon',
-    '/api/wardriving/raw',
-    '/api/wardriving/reset',
 }
 
 _IFACE_RE: re.Pattern[str] = re.compile(r'^[a-zA-Z0-9_.:-]{1,20}$')
@@ -752,8 +750,8 @@ def serve_page(filename):
         filename += '.html'
     if filename in ('wifi.html', 'network.html'):
         abort(404)
-    # Allow access to success.html and wardriving.html without auth for mobile devices
-    if filename not in ('index.html', 'success.html', 'wardriving.html') and not session.get('auth'):
+    # Require authentication for all pages except index.html
+    if filename != 'index.html' and not session.get('auth'):
         return redirect('/')
     template_path = os.path.join(app.template_folder, filename)
     if not os.path.exists(template_path):
