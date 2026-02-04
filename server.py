@@ -752,7 +752,8 @@ def serve_page(filename):
         filename += '.html'
     if filename in ('wifi.html', 'network.html'):
         abort(404)
-    if filename != 'index.html' and not session.get('auth'):
+    # Allow access to success.html and wardriving.html without auth for mobile devices
+    if filename not in ('index.html', 'success.html', 'wardriving.html') and not session.get('auth'):
         return redirect('/')
     template_path = os.path.join(app.template_folder, filename)
     if not os.path.exists(template_path):
