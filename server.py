@@ -1060,7 +1060,8 @@ def beacon_sniff():
                 'diag': {'cmd': last_err.get('cmd'), 'rc': last_err.get('rc')}
             }
 
-        aps: list[str] = []
+        aps: list[dict] = []
+        ssids: list[str] = []
         seen = set()
 
         for line in (rr.get('stdout') or '').splitlines():
@@ -1098,31 +1099,21 @@ def beacon_sniff():
                 sig_i = None
 
             rssi = None
-            rssi_1_10 = None
             if sig_i is not None:
                 if sig_i < 0:
                     sig_i = 0
                 if sig_i > 100:
                     sig_i = 100
                 rssi = int((sig_i / 2) - 100)
-                # Map RSSI (-50 to -90 typical) to 1-10 scale
-                if rssi >= -50: rssi_1_10 = 10
-                elif rssi >= -55: rssi_1_10 = 9
-                elif rssi >= -60: rssi_1_10 = 8
-                elif rssi >= -65: rssi_1_10 = 7
-                elif rssi >= -70: rssi_1_10 = 6
-                elif rssi >= -75: rssi_1_10 = 5
-                elif rssi >= -80: rssi_1_10 = 4
-                elif rssi >= -85: rssi_1_10 = 3
-                elif rssi >= -90: rssi_1_10 = 2
-                else: rssi_1_10 = 1
 
             key = (ssid or '') + '|' + (str(sig_i) if sig_i is not None else '') + '|' + (sec or '')
             if key in seen:
                 continue
             seen.add(key)
 
-            aps.append(f"{ssid} | {rssi_1_10} | {sec}")
+            aps.append({'ssid': ssid, 'signal': sig_i, 'rssi': rssi, 'security': sec})
+            if ssid and ssid not in ssids:
+                ssids.append(ssid)
             if len(aps) >= 25:
                 break
 
@@ -1130,6 +1121,8 @@ def beacon_sniff():
 
         return {
             'ok': True,
+            'ssids': ssids,
+            'count': len(aps),
             'aps': aps,
             'note': note,
             'diag': {
