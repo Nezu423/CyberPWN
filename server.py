@@ -1075,47 +1075,27 @@ def beacon_sniff():
                     continue
                 cleaned_parts.append(part)
             
-            if len(cleaned_parts) < 3:
+            if len(cleaned_parts) < 2:
                 continue
             
-            # Reconstruct the line without unwanted elements
-            cleaned_line = ' '.join(cleaned_parts)
+            # Join everything back together as the display string
+            display_str = ' '.join(cleaned_parts)
             
-            # Extract SSID, signal, and security from cleaned data
-            # Try to find numeric signal first
-            signal_num = None
+            # Extract signal if present
+            signal_num = 50  # default
             for part in cleaned_parts:
                 if part.isdigit() and 0 <= int(part) <= 100:
                     signal_num = int(part)
                     break
             
-            # If no numeric signal, default to 50
-            if signal_num is None:
-                signal_num = 50
+            # Calculate RSSI
+            rssi = int((signal_num / 2) - 100)
             
-            # Calculate RSSI (dBm)
-            rssi = None
-            if signal_num is not None:
-                rssi = int((signal_num / 2) - 100)
+            # Use the whole cleaned line as SSID for display
+            ssid = display_str
+            security = ''
             
-            # Use the cleaned line as SSID if we can't parse properly
-            ssid = cleaned_line
-            security = 'Unknown'
-            
-            # Try to extract SSID and security more intelligently
-            # Look for common security types at the end
-            security_types = ['WPA2', 'WPA', 'WEP', 'Open', '--']
-            for sec_type in security_types:
-                if cleaned_line.endswith(sec_type):
-                    security = sec_type
-                    ssid = cleaned_line[:-len(sec_type)].strip()
-                    break
-            
-            # Skip empty SSIDs
-            if not ssid:
-                continue
-            
-            key = ssid + '|' + str(signal_num) + '|' + security
+            key = ssid + '|' + str(signal_num)
             if key in seen:
                 continue
             seen.add(key)
