@@ -29,7 +29,7 @@ echo "Scan interface available: $SCAN_IFACE"
 echo "SSID: $SSID (single client allowed)"
 echo "Website will be hosted at: http://$AP_IP:5000"
 
-# 1) Write hostapd config for BTT CB1
+# 1) Write hostapd config for BTT CB1 (simplified)
 cat > "$CONFIG" << EOF
 # Evil Twin AP - $SSID (BTT CB1)
 interface=$AP_IFACE
@@ -37,12 +37,7 @@ driver=nl80211
 ssid=$SSID
 channel=6
 hw_mode=g
-ieee80211n=1
-wmm_enabled=0
-macaddr_acl=0
-auth_algs=1
-ignore_broadcast_ssid=0
-max_num_sta=1  # Single client limit
+max_num_sta=1
 EOF
 
 cat >> "$CONFIG" << EOF
