@@ -1654,13 +1654,20 @@ def api_server_info() -> Response:
         if not ips:
             ips = ['127.0.0.1']
         
+        # Check if server is bound to primary IP
+        primary_ip = '192.168.4.1'
+        is_primary_bound = primary_ip in ips
+        
         return jsonify({
             'ok': True,
             'hostname': hostname,
             'primary_ip': ips[0] if ips else '127.0.0.1',
             'all_ips': ips,
             'port': 5000,
-            'access_urls': [f"http://{ip}:5000" for ip in ips]
+            'access_urls': [f"http://{ip}:5000" for ip in ips],
+            'bound_to_primary': is_primary_bound,
+            'expected_primary': primary_ip,
+            'binding_status': 'primary' if is_primary_bound else 'fallback'
         })
         
     except Exception as e:

@@ -134,6 +134,19 @@ function getServerInfo() {
       data.access_urls.forEach(function(url) {
         output += '  ' + url + '\n';
       });
+      
+      // Show binding status
+      if (data.bound_to_primary) {
+        output += '\n✓ Server bound to primary IP (192.168.4.1)';
+        output += '\n✓ Optimal configuration for WiFi access';
+      } else {
+        output += '\n⚠ Server using fallback IP: ' + data.primary_ip;
+        output += '\n⚠ Expected primary IP: ' + data.expected_primary;
+        output += '\n⚠ Consider restarting server for optimal access';
+      }
+      
+      output += '\nBinding Status: ' + data.binding_status.toUpperCase();
+      
       serverInfo.innerHTML = esc(output);
     } else {
       serverInfo.innerHTML = '<span style="color:#ff6b6b;">Error: ' + ((data && data.error) ? data.error : 'Unknown') + '</span>';
@@ -277,19 +290,26 @@ function connectNetwork() {
     
     if (err) {
       networkList.innerHTML = '<div class="error">Connection failed: ' + err + '</div>';
+      networkList.innerHTML += '<button class="btn" type="button" onclick="scanNetworks()">SCAN AGAIN</button>';
       return;
     }
     
     if (data && data.ok) {
       networkList.innerHTML = '<div class="connected">✓ Connected to ' + esc(selectedNetwork.ssid) + '</div>';
       networkList.innerHTML += '<div class="network-info">IP: ' + esc(data.ip || 'N/A') + '</div>';
-      networkList.innerHTML += '<button class="btn btn3" type="button" onclick="disconnectNetwork()">DISCONNECT</button>';
       
-      // Refresh server info to show new IP
-      getServerInfo();
+      // Wait a moment for server to update, then refresh server info
+      setTimeout(function() {
+        getServerInfo();
+      }, 2000);
+      
+      networkList.innerHTML += '<button class="btn btn3" type="button" onclick="disconnectNetwork()">DISCONNECT</button>';
+      networkList.innerHTML += '<button class="btn btn2" type="button" onclick="scanNetworks()">SCAN NETWORKS</button>';
     } else {
-      networkList.innerHTML = '<div class="error">Connection failed: ' + ((data && data.error) ? data.error : 'Unknown') + '</div>';
-      networkList.innerHTML += '<button class="btn" type="button" onclick="scanNetwork()">SCAN AGAIN</button>';
+      var errorMsg = ((data && data.error) ? data.error : 'Unknown error');
+      networkList.innerHTML = '<div class="error">Connection failed: ' + errorMsg + '</div>';
+      networkList.innerHTML += '<div class="network-info">Check password and try again</div>';
+      networkList.innerHTML += '<button class="btn" type="button" onclick="scanNetworks()">SCAN AGAIN</button>';
     }
   });
 }
@@ -308,10 +328,15 @@ function disconnectNetwork() {
       return;
     }
     
-    networkList.innerHTML = '<div class="dim">Disconnected</div>';
-    networkList.innerHTML += '<button class="btn" type="button" onclick="scanNetwork()">SCAN NETWORKS</button>';
+    networkList.innerHTML = '<div class="dim">Disconnected from WiFi</div>';
+    networkList.innerHTML += '<button class="btn" type="button" onclick="scanNetworks()">SCAN NETWORKS</button>';
     
     selectedNetwork = null;
+    
+    // Refresh server info after disconnect
+    setTimeout(function() {
+      getServerInfo();
+    }, 1000);
   });
 }
 

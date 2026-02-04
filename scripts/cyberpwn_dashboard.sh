@@ -1,5 +1,5 @@
 #!/bin/bash
-# cyberpwn_dashboard.sh - CyberPWN Server Monitoring Dashboard
+# cyberpwn_dashboard.sh - CyberPWN Server Monitoring Dashboard for Linux/Armbian
 # Color codes
 RED='\033[0;31m'
 GREEN='\033[0;32m'
@@ -35,7 +35,8 @@ display_header() {
 
 # Function to get server info
 get_server_info() {
-    local response=$(curl -s -m 5 "$SERVER_URL/api/server/info" 2>/dev/null)
+    local server_url=$(get_server_url)
+    local response=$(curl -s -m 5 "$server_url" 2>/dev/null)
     if [ $? -eq 0 ] && [ "$response" != "" ]; then
         echo "$response" | python3 -c "
 import json, sys
@@ -46,26 +47,56 @@ try:
     print(f'Port: {data.get(\"port\", \"Unknown\")}')
     if data.get('all_ips'):
         print(f'All IPs: {\", \".join(data[\"all_ips\"])}')
-except:
-    pass
+    print(f'Binding Status: {data.get(\"binding_status\", \"Unknown\")}')
+    print(f'Expected Primary: {data.get(\"expected_primary\", \"Unknown\")}')
+except Exception as e:
+    print(f'Parse Error: {e}')
 "
     else
         echo -e "${RED}Server Status: OFFLINE${NC}"
         echo "Bound IP: Unknown"
         echo "Hostname: Unknown"
         echo "Port: 5000"
+        echo "Binding Status: Unknown"
     fi
 }
 
 # Function to check if server is running
 check_server_status() {
+    # Try multiple methods to check if server is running
     if curl -s -m 2 "$SERVER_URL/api/server/info" >/dev/null 2>&1; then
+        echo -e "${GREEN}RUNNING${NC}"
+        return 0
+    elif curl -s -m 2 "http://localhost:5000/api/server/info" >/dev/null 2>&1; then
+        echo -e "${GREEN}RUNNING${NC}"
+        return 0
+    elif curl -s -m 2 "http://127.0.0.1:5000/api/server/info" >/dev/null 2>&1; then
         echo -e "${GREEN}RUNNING${NC}"
         return 0
     else
         echo -e "${RED}OFFLINE${NC}"
         return 1
     fi
+}
+
+# Function to get actual server URL
+get_server_url() {
+    # Try different URLs to find the running server
+    local urls=(
+        "$SERVER_URL/api/server/info"
+        "http://localhost:5000/api/server/info"
+        "http://127.0.0.1:5000/api/server/info"
+    )
+    
+    for url in "${urls[@]}"; do
+        if curl -s -m 2 "$url" >/dev/null 2>&1; then
+            echo "${url}"
+            return 0
+        fi
+    done
+    
+    echo "$SERVER_URL/api/server/info"
+    return 1
 }
 
 # Function to monitor API calls
@@ -128,19 +159,19 @@ show_system_stats() {
     # CPU usage
     if command -v top >/dev/null 2>&1; then
         local cpu_usage=$(top -bn1 | grep "Cpu(s)" | awk '{print $2 + $4}' | sed 's/%,//g')
-        echo -e "CPU Usage: ${YELLOW}${cpu_usage}%${NC} "
+        echo -e "CPU Usage: ${YELLOW}${cpu_usage}%${NC}"
     fi
     
     # Memory usage
     if command -v free >/dev/null 2>&1; then
         local mem_info=$(free -m | awk '/Mem:/ {printf("%.1f%%", $3/$2 * 100.0)}')
-        echo -e "Memory: ${YELLOW}${mem_info}${NC} "
+        echo -e "Memory: ${YELLOW}${mem_info}${NC}"
     fi
     
     # Disk usage
     if command -v df >/dev/null 2>&1; then
         local disk_info=$(df -h / | awk 'NR==2 {print $3 "/" $2 " (" $5 ")"}')
-        echo -e "Disk: ${YELLOW}${disk_info}${NC} "
+        echo -e "Disk: ${YELLOW}${disk_info}${NC}"
     fi
     
     # Network interfaces
@@ -149,8 +180,15 @@ show_system_stats() {
         ip addr show | grep -E "inet [0-9]" | while read -r line; do
             local interface=$(echo "$line" | awk '{print $2}' | cut -d: -f1)
             local ip=$(echo "$line" | awk '{print $2}' | cut -d/ -f1)
-            echo -e "  ${CYAN}${interface}${NC}: ${GREEN}${ip}${NC} "
+            echo -e "  ${CYAN}${interface}${NC}: ${GREEN}${ip}${NC}"
         done
+    fi
+    
+    # Temperature (if available)
+    if [ -f /sys/class/thermal/thermal_zone0/temp ]; then
+        local temp=$(cat /sys/class/thermal/thermal_zone0/temp 2>/dev/null)
+        local temp_c=$(awk "BEGIN {printf \"%.1f\", $temp/1000}" <<< "$temp")
+        echo -e "CPU Temp: ${YELLOW}${temp_c}°C${NC}"
     fi
 }
 
@@ -159,23 +197,39 @@ show_processes() {
     echo "=== CyberPWN Processes ==="
     
     # Check if server process is running
-    if pgrep -f "python.*server.py" >/dev/null; then
+    if pgrep -f "python.*server.py" >/dev/null 2>&1; then
         local server_pid=$(pgrep -f "python.*server.py" | head -1)
-        local server_cpu=$(ps -p "$server_pid" -o %cpu --no-headers)
-        local server_mem=$(ps -p "$server_pid" -o %mem --no-headers)
-        echo -e "Server (PID: ${server_pid}): ${YELLOW}CPU ${server_cpu}% | MEM ${server_mem}%${NC} "
+        local server_cpu=$(ps -p "$server_pid" -o %cpu --no-headers 2>/dev/null | tr -d ' ')
+        local server_mem=$(ps -p "$server_pid" -o %mem --no-headers 2>/dev/null | tr -d ' ')
+        echo -e "Server (PID: ${server_pid}): ${YELLOW}CPU ${server_cpu}% | MEM ${server_mem}%${NC}"
     else
-        echo -e "${RED}Server process not running${NC} "
+        echo -e "${RED}Server process not running${NC}"
     fi
     
     # Check for nmcli (WiFi)
-    if pgrep nmcli >/dev/null; then
-        echo -e "${GREEN}nmcli (WiFi management)${NC} "
+    if pgrep nmcli >/dev/null 2>&1; then
+        echo -e "${GREEN}nmcli (WiFi management)${NC}"
     fi
     
     # Check for nmap
     if command -v nmap >/dev/null 2>&1; then
-        echo -e "${GREEN}nmap (network scanning)${NC} "
+        echo -e "${GREEN}nmap (network scanning)${NC}"
+    fi
+    
+    # Check for WiFi interface
+    if command -v iwconfig >/dev/null 2>&1; then
+        local wifi_iface=$(iwconfig 2>/dev/null | grep -E "^[a-zA-Z0-9]+" | awk '{print $1}' | head -1)
+        if [ -n "$wifi_iface" ]; then
+            local wifi_ssid=$(iwgetid "$wifi_iface" 2>/dev/null | awk -F '"' '{print $2}')
+            local wifi_ip=$(ip addr show "$wifi_iface" 2>/dev/null | grep "inet " | awk '{print $2}' | cut -d/ -f1 | head -1)
+            echo -e "${CYAN}WiFi Interface: ${wifi_iface}${NC}"
+            if [ -n "$wifi_ssid" ]; then
+                echo -e "${CYAN}Connected to: ${wifi_ssid}${NC}"
+            fi
+            if [ -n "$wifi_ip" ]; then
+                echo -e "${CYAN}IP Address: ${wifi_ip}${NC}"
+            fi
+        fi
     fi
 }
 
@@ -183,6 +237,7 @@ show_processes() {
 test_api_endpoints() {
     echo "=== API Endpoint Tests ==="
     
+    local server_url=$(get_server_url | sed 's|/api/server/info||')
     local endpoints=(
         "/api/server/info"
         "/api/sniffer/beacon"
@@ -192,19 +247,22 @@ test_api_endpoints() {
         "/api/nmap/scan"
     )
     
+    echo "Testing with server URL: ${server_url}"
+    echo ""
+    
     for endpoint in "${endpoints[@]}"; do
         echo -n "Testing $endpoint... "
         local start_time=$(date +%s)
-        local response=$(curl -s -m 5 -w "%{http_code}" "$SERVER_URL$endpoint" 2>/dev/null)
+        local response=$(curl -s -m 5 -w "%{http_code}" "${server_url}${endpoint}" 2>/dev/null)
         local end_time=$(date +%s)
         local duration=$((end_time - start_time))
         
         if [ "$response" = "200" ]; then
-            echo -e "${GREEN}OK${NC} (${duration}s) "
+            echo -e "${GREEN}OK${NC} (${duration}s)"
             # Log the successful call
             echo "[$(date '+%H:%M:%S')] POST $endpoint 200" >> "$LOG_FILE"
         else
-            echo -e "${RED}FAILED${NC} (${response} ${duration}s) "
+            echo -e "${RED}FAILED${NC} (${response} ${duration}s)"
             # Log the failed call
             echo "[$(date '+%H:%M:%S')] POST $endpoint $response" >> "$LOG_FILE"
         fi
@@ -215,12 +273,15 @@ test_api_endpoints() {
 show_bound_ip() {
     echo "=== Server Binding Information ==="
     
+    local server_url=$(get_server_url)
+    local actual_server_url=$(echo "$server_url" | sed 's|/api/server/info||')
+    
     # Check if server is running on primary IP
     if check_server_status; then
-        echo -e "Primary Binding: ${GREEN}${SERVER_HOST}:${SERVER_PORT}${NC} "
+        echo -e "Server URL: ${GREEN}${actual_server_url}${NC}"
         
         # Get actual bound IP from server
-        local actual_ip=$(curl -s "$SERVER_URL/api/server_info" 2>/dev/null | python3 -c "
+        local actual_ip=$(curl -s "$server_url" 2>/dev/null | python3 -c "
 import json, sys
 try:
     data = json.load(sys.stdin)
@@ -230,15 +291,25 @@ except:
 " 2>/dev/null)
         
         if [ "$actual_ip" != "" ] && [ "$actual_ip" != "Unknown" ]; then
+            echo -e "Actual IP: ${GREEN}${actual_ip}${NC}"
+            
+            # Check if it's the expected primary IP
             if [ "$actual_ip" = "$SERVER_HOST" ]; then
-                echo -e "Status: ${GREEN}Successfully bound to ${SERVER_HOST}${NC} "
+                echo -e "Status: ${GREEN}Successfully bound to ${SERVER_HOST}${NC}"
+                echo -e "Configuration: ${GREEN}OPTIMAL${NC}"
             else
-                echo -e "Status: ${YELLOW}Fallback binding (${actual_ip})${NC} "
+                echo -e "Status: ${YELLOW}Fallback binding (${actual_ip})${NC}"
+                echo -e "Expected: ${SERVER_HOST}"
+                echo -e "Configuration: ${YELLOW}SUBOPTIMAL${NC}"
+                echo -e "Recommendation: Restart server for optimal access"
             fi
+        else
+            echo -e "Status: ${RED}Could not determine bound IP${NC}"
         fi
     else
-        echo -e "${RED}Server is OFFLINE${NC} "
-        echo -e "Expected binding: ${SERVER_HOST}:${SERVER_PORT} "
+        echo -e "${RED}Server is OFFLINE${NC}"
+        echo -e "Expected binding: ${SERVER_HOST}:${SERVER_PORT}"
+        echo -e "Trying fallback URLs: localhost:5000, 127.0.0.1:5000"
     fi
 }
 
