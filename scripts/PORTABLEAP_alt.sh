@@ -48,13 +48,14 @@ sleep 2
 if command -v create_ap >/dev/null 2>&1; then
     echo -e "${GREEN}Using create_ap...${NC}"
     
-    # Start create_ap with single client limit
+    # Start create_ap with password and single client limit
     create_ap --daemon --pidfile /tmp/create_ap.pid \
         --hostapd-log /tmp/hostapd.log \
         --freq-band 2.4 \
         --channel 6 \
         --max-clients 1 \
-        "$AP_IFACE" "$INTERNET_IFACE" "$SSID" "$PASSWORD"
+        --wifi-pwd "$PASSWORD" \
+        "$AP_IFACE" "$INTERNET_IFACE" "$SSID"
     
     if [ $? -eq 0 ]; then
         echo -e "${GREEN}AP started with create_ap${NC}"
@@ -71,13 +72,17 @@ fi
 # Method 2: Simple hostapd with minimal config
 echo -e "${YELLOW}Trying minimal hostapd...${NC}"
 
-# Create minimal config
+# Create minimal config with password
 cat > /tmp/minimal_ap.conf << EOF
 interface=$AP_IFACE
 driver=nl80211
 ssid=$SSID
 channel=6
 hw_mode=g
+wpa=2
+wpa_passphrase=$PASSWORD
+wpa_key_mgmt=WPA-PSK
+rsn_pairwise=CCMP
 EOF
 
 # Test if interface supports AP mode
@@ -96,24 +101,39 @@ hostapd -B -P /tmp/hostapd.pid /tmp/minimal_ap.conf 2>/dev/null
 # Check if it started
 sleep 3
 if pgrep -f "hostapd.*minimal_ap.conf" >/dev/null; then
-    echo -e "${GREEN}Basic AP started (no security)${NC}"
+    echo -e "${GREEN}Basic AP started with WPA2${NC}"
     
     # Set IP address
     ip addr add "$AP_IP/24" dev "$AP_IFACE" 2>/dev/null
     
-    # Start simple dnsmasq
+    # Start dnsmasq with proper DHCP
+    echo -e "${YELLOW}Starting DHCP server...${NC}"
     dnsmasq --interface="$AP_IFACE" \
         --bind-interfaces \
         --dhcp-range=192.168.4.100,192.168.4.100,255.255.255.0,12h \
         --dhcp-option=3,$AP_IP \
+        --dhcp-option=6,$AP_IP \
         --address=/#/$AP_IP \
+        --no-resolv \
+        --server=8.8.8.8 \
+        --domain-needed \
+        --bogus-priv \
         --daemon 2>/dev/null
     
+    # Verify dnsmasq is running
+    sleep 2
+    if pgrep dnsmasq >/dev/null; then
+        echo -e "${GREEN}DHCP server started${NC}"
+    else
+        echo -e "${YELLOW}DHCP server may not be running${NC}"
+    fi
+    
     echo -e "${GREEN}AP Setup Complete${NC}"
-    echo -e "${GREEN}SSID: $SSID (OPEN - no password)${NC}"
+    echo -e "${GREEN}SSID: $SSID${NC}"
+    echo -e "${GREEN}Password: $PASSWORD${NC}"
     echo -e "${GREEN}IP: $AP_IP${NC}"
     echo -e "${GREEN}Website: http://$AP_IP:5000${NC}"
-    echo -e "${YELLOW}Note: No password - open network${NC}"
+    echo -e "${GREEN}Client should get IP: 192.168.4.100${NC}"
 else
     echo -e "${RED}All methods failed${NC}"
     echo -e "${YELLOW}Debug info:${NC}"
