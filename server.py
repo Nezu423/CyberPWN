@@ -43,6 +43,21 @@ PIN_SHA256 = hashlib.sha256("062823".encode()).hexdigest()
 
 _UNAUTH_API_PATHS = {
     '/api/verify_pin',
+    '/api/sniffer/beacon',
+    '/api/wardriving/raw',
+    '/api/wardriving/reset',
+    '/api/network_info',
+    '/api/ping_gateway',
+    '/api/arp_spoof/status',
+    '/api/arp_spoof/baseline/set',
+    '/api/arp_spoof/baseline/clear',
+    '/api/arp_spoof/watch',
+    '/api/port_audit',
+    '/api/interfaces/status',
+    '/api/port_scan',
+    '/api/wifi/scan',
+    '/api/url_sniffer/urls',
+    '/api/sniffer/channel_analyzer',
 }
 
 _IFACE_RE: re.Pattern[str] = re.compile(r'^[a-zA-Z0-9_.:-]{1,20}$')
