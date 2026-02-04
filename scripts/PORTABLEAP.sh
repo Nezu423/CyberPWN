@@ -4,7 +4,8 @@
 # When AP is up, open http://192.168.4.1:5000 from any device connected to the AP.
 
 set -e
-SSID="${1:?Usage: $0 <SSID>}"
+SSID="CPWN"
+AP_PASS="062823"
 # Project root (parent of scripts/)
 BASE="$(cd "$(dirname "$0")/.." && pwd)"
 CONFIG="$BASE/evil_twin.conf"
@@ -24,6 +25,13 @@ driver=nl80211
 ssid=$SSID
 channel=6
 hw_mode=g
+EOF
+
+cat >> "$CONFIG" << EOF
+wpa=2
+wpa_passphrase=$AP_PASS
+wpa_key_mgmt=WPA-PSK
+rsn_pairwise=CCMP
 EOF
 
 # 2) Release interface from NetworkManager
@@ -50,4 +58,4 @@ pkill -f "hostapd.*$CONFIG" 2>/dev/null || true
 sleep 1
 hostapd -B -P "$HOSTAPD_PID" "$CONFIG" 2>/dev/null || hostapd -B "$CONFIG"
 
-echo "AP up: SSID=$SSID, open http://${AP_IP}:5000"
+echo "AP up: SSID=$SSID (WPA2), open http://${AP_IP}:5000"
