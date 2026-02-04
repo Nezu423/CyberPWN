@@ -769,115 +769,79 @@ def api_arp_spoof_baseline_clear() -> Response:
         return jsonify({'ok': False, 'error': str(e)}), 500
 
 
-_BSSID_RE: re.Pattern[str] = re.compile(r'(?:^|:)([0-9A-Fa-f]{2}(?::[0-9A-Fa-f]{2}){5})(?=:|$|\s)')
-
-
-@app.route('/api/scan_wifi_list')
-def scan_wifi_list() -> Response:
+@app.route('/api/arp_spoof/watch', methods=['GET'])
+def api_arp_spoof_watch() -> Response:
     try:
-        result = run_capture("sudo nmcli -t -f SSID,BSSID,SIGNAL,CHAN dev wifi list", timeout=10)
-        if result.get('returncode') != 0:
-            return jsonify({"error": result.get('stderr', 'WiFi scan failed')})
-        
-        output = result.get('stdout', '')
-        results = []
-        seen_ssid = set()
-        
-        for line in output.split('\n'):
-            if not line or len(results) >= 9:
-                continue
-            
-            # Extract BSSID using regex
-            bssid_match: re.Match[str] | None = _BSSID_RE.search(line)
-            bssid: str = bssid_match.group(1).upper() if bssid_match else ""
-            
-            # Extract SSID (everything before BSSID)
-            if bssid_match:
-                ssid = line[:bssid_match.start()].rstrip(':')
-            else:
-                parts = line.split(':')
-                ssid = parts[0] if parts else ""
-            
-            if not ssid or ssid in seen_ssid:
-                continue
-            
-            seen_ssid.add(ssid)
-            
-            # Extract signal and channel
-            parts = line.split(':')
-            signal = "0"
-            channel = "?"
-            if len(parts) >= 3:
-                # Signal is usually after BSSID
-                for i, part in enumerate(parts):
-                    if part.isdigit() and int(part) <= 100:
-                        signal = part
-                        break
-                if len(parts) >= 4:
-                    channel = parts[-1] if parts[-1].isdigit() else "?"
-            
-            results.append({"ssid": ssid, "bssid": bssid, "signal": signal, "channel": channel})
-        
-        return jsonify(results)
-    except Exception as e:
-        return jsonify({"error": str(e)})
+        baseline = _arp_baseline_read()
+        gw, err = _get_default_gateway_ip()
+        if not gw:
+            return jsonify({'ok': False, 'error': err or 'Gateway not found'}), 400
 
+        base_mac = (baseline.get('gateway_mac') or '').strip().lower() if isinstance(baseline, dict) else ''
+        iface = (baseline.get('gateway_iface') or '').strip() if isinstance(baseline, dict) else ''
 
-# --- Interface Management ---
-@app.route('/api/interfaces/status')
-def interfaces_status() -> Response:
-    """Get status of all network interfaces."""
-    try:
-        interfaces = get_all_interfaces()
+        try:
+            seconds = int((request.args.get('seconds') or '3').strip())
+        except Exception:
+            seconds = 3
+        if seconds < 1:
+            seconds = 1
+        if seconds > 6:
+            seconds = 6
+
+        _prime_arp(gw)
+
+        if iface:
+            cmd = f"sudo timeout {seconds}s tcpdump -n -e -l -i {iface} arp 2>&1"
+        else:
+            cmd = f"sudo timeout {seconds}s tcpdump -n -e -l -i any arp 2>&1"
+
+        cap = run_capture(cmd, timeout=seconds + 3)
+        out = (cap.get('stdout') or '').splitlines()
+        err = (cap.get('stderr') or '').splitlines()
+
+        reply_re = re.compile(r"\bReply\s+(\d+\.\d+\.\d+\.\d+)\s+is-at\s+([0-9A-Fa-f:]{17})\b")
+        seen_macs = []
+        seen_set = set()
+        for line in out:
+            m = reply_re.search(line)
+            if not m:
+                continue
+            ip = m.group(1)
+            mac = (m.group(2) or '').lower()
+            if ip != gw:
+                continue
+            if mac and mac not in seen_set:
+                seen_set.add(mac)
+                seen_macs.append(mac)
+
+        alert = False
+        reason = None
+        if base_mac:
+            for mac in seen_macs:
+                if mac != base_mac:
+                    alert = True
+                    reason = 'Observed ARP reply claiming gateway IP from unexpected MAC'
+                    break
+        else:
+            if len(seen_macs) > 1:
+                alert = True
+                reason = 'Observed multiple MACs claiming gateway IP'
+
         return jsonify({
             'ok': True,
-            'interfaces': interfaces,
+            'gateway_ip': gw,
+            'baseline_mac': base_mac or None,
+            'iface': iface or None,
+            'seconds': seconds,
+            'seen_macs': seen_macs,
+            'alert': alert,
+            'reason': reason,
+            'sample': out[:20],
+            'stderr': err[:20],
+            'cmd': cmd,
+            'rc': cap.get('returncode'),
         })
-
-    except Exception as e:
-        return jsonify({'error': str(e)})
-
-
-@app.route('/api/interfaces/<iface>/up', methods=['POST'])
-def interface_up(iface) -> Response:
-    """Bring interface up."""
-    try:
-        iface = _validate_iface_or_400(iface)
-        result = run_capture(f"sudo ip link set {iface} up 2>&1", timeout=5)
-        if result.get('returncode') == 0:
-            status = get_interface_status(iface)
-            return jsonify({
-                'ok': True,
-                'msg': f'Interface {iface} brought up',
-                'status': status
-            })
-        else:
-            return jsonify({
-                'error': f'Failed to bring {iface} up',
-                'stderr': result.get('stderr', '')
-            })
-    except Exception as e:
-        return jsonify({'error': str(e)})
-
-
-@app.route('/api/interfaces/<iface>/down', methods=['POST'])
-def interface_down(iface) -> Response:
-    """Bring interface down."""
-    try:
-        iface = _validate_iface_or_400(iface)
-        result = run_capture(f"sudo ip link set {iface} down 2>&1", timeout=5)
-        if result.get('returncode') == 0:
-            status = get_interface_status(iface)
-            return jsonify({
-                'ok': True,
-                'msg': f'Interface {iface} brought down',
-                'status': status
-            })
-        else:
-            return jsonify({
-                'error': f'Failed to bring {iface} down',
-                'stderr': result.get('stderr', '')
-            })
     except Exception as e:
         return jsonify({'error': str(e)})
 
@@ -886,32 +850,56 @@ def interface_down(iface) -> Response:
 def beacon_sniff():
     """Capture and parse WiFi beacon frames to extract SSIDs."""
     try:
-        r = run_capture("nmcli -t -f SSID,BSSID,SIGNAL,CHAN,SECURITY dev wifi list 2>/dev/null", timeout=10)
+        r = run_capture("nmcli -t --separator '|' -f SSID,BSSID,SIGNAL,CHAN,SECURITY dev wifi list 2>/dev/null", timeout=10)
+        if r.get('returncode') != 0:
+            r = run_capture("nmcli -t -f SSID,BSSID,SIGNAL,CHAN,SECURITY dev wifi list 2>/dev/null", timeout=10)
+
         if r.get('returncode') != 0:
             return {'ok': False, 'error': 'nmcli scan failed', 'stdout': r.get('stdout', ''), 'stderr': r.get('stderr', '')}
-        bssid_re = re.compile(r"([0-9A-Fa-f]{2}(?::[0-9A-Fa-f]{2}){5})")
         aps = []
         ssids = []
         seen_key = set()
+
+        bssid_re = re.compile(r"([0-9A-Fa-f]{2}(?::[0-9A-Fa-f]{2}){5})")
 
         for line in (r.get('stdout') or '').split('\n'):
             line = (line or '').strip()
             if not line:
                 continue
 
-            m = bssid_re.search(line)
-            if not m:
-                continue
-            bssid = (m.group(1) or '').lower()
-            ssid = (line[:m.start()] or '').rstrip(':').strip()
-            tail = (line[m.end():] or '')
-            if tail.startswith(':'):
-                tail = tail[1:]
-            tail_parts = tail.split(':')
+            ssid = ''
+            bssid = ''
+            signal = ''
+            chan = ''
+            sec = ''
 
-            signal = (tail_parts[0] or '').strip() if len(tail_parts) > 0 else ''
-            chan = (tail_parts[1] or '').strip() if len(tail_parts) > 1 else ''
-            sec = (':'.join(tail_parts[2:]) or '').strip() if len(tail_parts) > 2 else ''
+            if '|' in line:
+                parts = line.split('|')
+                if len(parts) < 2:
+                    continue
+                ssid = (parts[0] or '').strip()
+                bssid = (parts[1] or '').strip().lower()
+                signal = (parts[2] or '').strip() if len(parts) > 2 else ''
+                chan = (parts[3] or '').strip() if len(parts) > 3 else ''
+                sec = (parts[4] or '').strip() if len(parts) > 4 else ''
+                if len(parts) > 5:
+                    sec = ('|'.join(parts[4:]) or '').strip()
+            else:
+                m = bssid_re.search(line)
+                if not m:
+                    continue
+                bssid = (m.group(1) or '').strip().lower()
+                ssid = (line[:m.start()] or '').rstrip(':').strip()
+                tail = (line[m.end():] or '')
+                if tail.startswith(':'):
+                    tail = tail[1:]
+                tail_parts = tail.split(':')
+                signal = (tail_parts[0] or '').strip() if len(tail_parts) > 0 else ''
+                chan = (tail_parts[1] or '').strip() if len(tail_parts) > 1 else ''
+                sec = (':'.join(tail_parts[2:]) or '').strip() if len(tail_parts) > 2 else ''
+
+            if not re.match(r"^[0-9A-Fa-f]{2}(?::[0-9A-Fa-f]{2}){5}$", bssid or ''):
+                continue
 
             sig_i = None
             try:

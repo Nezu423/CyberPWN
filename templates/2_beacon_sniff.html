@@ -132,6 +132,12 @@ function updateBeacon() {
       html += '</div>';
     } else {
       html = '<span style="color:#BF616A;">Error: ' + ((data && data.error) ? data.error : 'Unknown') + '</span>';
+      if (data && data.stdout) {
+        html += '<div style="margin-top:6px;color:#bbb;white-space:pre-wrap;">STDOUT:\n' + String(data.stdout).substring(0, 600) + '</div>';
+      }
+      if (data && data.stderr) {
+        html += '<div style="margin-top:6px;color:#bbb;white-space:pre-wrap;">STDERR:\n' + String(data.stderr).substring(0, 600) + '</div>';
+      }
     }
     document.getElementById('result').innerHTML = html;
   });

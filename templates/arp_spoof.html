@@ -56,6 +56,12 @@ a:visited{color:#FFD600 !important;}
   <button class="btn" type="button" onclick="refresh()">REFRESH</button>
 </div>
 
+<div class="card">
+  <div class="st">Traffic Watch</div>
+  <div id="watch" class="log">Ready.</div>
+  <button class="btn" type="button" onclick="watchOnce()">WATCH ARP (3s)</button>
+</div>
+
 <script>
 function _e(s){return (s===null||s===undefined)?'':String(s);}
 function setText(id, txt){var el=document.getElementById(id); if(el) el.innerHTML=txt;}
@@ -123,6 +129,35 @@ function refresh(){
       return;
     }
     render(d);
+  });
+}
+
+function watchOnce(){
+  setText('watch','Watching ARP...');
+  api('GET','/api/arp_spoof/watch?seconds=3',null,function(err,d){
+    if(err){
+      setText('watch','Error: '+_e(err));
+      return;
+    }
+    if(!d || !d.ok){
+      setText('watch','Error: '+_e(d && d.error ? d.error : 'Unknown error'));
+      return;
+    }
+    var out='GW: '+_e(d.gateway_ip)+'\n';
+    out+='BASE: '+_e(d.baseline_mac || 'NONE')+'\n';
+    out+='SEEN: '+_e((d.seen_macs||[]).join(', ') || 'NONE')+'\n';
+    if(d.alert){
+      out+='\nALERT: '+_e(d.reason || 'ARP anomaly');
+    } else {
+      out+='\nOK: no anomaly observed in this window';
+    }
+    if(d.sample && d.sample.length){
+      out+='\n\nSAMPLE:\n'+_e(d.sample.join('\n'));
+    }
+    if(d.stderr && d.stderr.length){
+      out+='\n\nERR:\n'+_e(d.stderr.join('\n'));
+    }
+    setText('watch', out);
   });
 }
 
