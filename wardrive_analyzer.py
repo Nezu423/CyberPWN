@@ -19,10 +19,16 @@ def parse_wardrive_log(file_path):
         with open(file_path, 'r', encoding='utf-8', errors='ignore') as f:
             lines = f.readlines()
             
+        print(f"DEBUG: Reading {len(lines)} lines from file")
+        
         for line_num, line in enumerate(lines, 1):
             line = line.strip()
             if not line:
                 continue
+            
+            # Debug: Show first few lines
+            if line_num <= 5:
+                print(f"DEBUG Line {line_num}: {line[:100]}...")
             
             # Try to parse each line as JSON (JSON lines format)
             try:
@@ -31,6 +37,9 @@ def parse_wardrive_log(file_path):
                     # Extract SSID from JSON
                     ssid = data.get('ssid') or data.get('SSID') or data.get('essid') or data.get('ESSID')
                     if ssid:
+                        if line_num <= 5:
+                            print(f"DEBUG: Found SSID in JSON: '{ssid}'")
+                        
                         # Extract encryption from JSON
                         encryption = data.get('encryption', data.get('security', 'Unknown'))
                         if isinstance(encryption, list):
@@ -63,6 +72,8 @@ def parse_wardrive_log(file_path):
                         })
                         continue
             except json.JSONDecodeError:
+                if line_num <= 5:
+                    print(f"DEBUG: Not JSON, trying text parsing")
                 pass  # Not JSON, try text parsing
             
             # If not JSON, try text parsing
@@ -73,36 +84,51 @@ def parse_wardrive_log(file_path):
             ssid_match = re.search(r'SSID[:\s]+["\']?([^"\',\s]+)["\']?', line, re.IGNORECASE)
             if ssid_match:
                 ssid = ssid_match.group(1)
+                if line_num <= 5:
+                    print(f"DEBUG: Found SSID with pattern 1: '{ssid}'")
             
             # Pattern 2: ESSID:"NetworkName" (iwconfig format)
             if not ssid:
                 essid_match = re.search(r'ESSID[:\s]+["\']?([^"\']+)["\']?', line, re.IGNORECASE)
                 if essid_match:
                     ssid = essid_match.group(1)
+                    if line_num <= 5:
+                        print(f"DEBUG: Found SSID with pattern 2: '{ssid}'")
             
             # Pattern 3: "NetworkName" (quoted SSID alone)
             if not ssid:
                 quoted_match = re.search(r'^["\']([^"\']+)["\']$', line)
                 if quoted_match:
                     ssid = quoted_match.group(1)
+                    if line_num <= 5:
+                        print(f"DEBUG: Found SSID with pattern 3: '{ssid}'")
             
             # Pattern 4: NetworkName (unquoted, just a word)
             if not ssid and len(line.split()) == 1 and len(line) > 2:
                 # Single word that looks like a network name
                 if not re.match(r'^[0-9\-\.]+$', line) and not line.startswith(('0x', '00:')):
                     ssid = line
+                    if line_num <= 5:
+                        print(f"DEBUG: Found SSID with pattern 4: '{ssid}'")
             
             # Pattern 5: JSON-like entries in text
             if not ssid:
                 json_match = re.search(r'"ssid"[:\s]*["\']([^"\']+)["\']', line, re.IGNORECASE)
                 if json_match:
                     ssid = json_match.group(1)
+                    if line_num <= 5:
+                        print(f"DEBUG: Found SSID with pattern 5: '{ssid}'")
+            
+            if line_num <= 5 and not ssid:
+                print(f"DEBUG: No SSID found in line {line_num}")
             
             if not ssid:
                 continue
             
             # Skip common non-SSID entries
             if ssid.lower() in ['unknown', '', 'n/a', 'null', 'none', 'hidden', 'ssid']:
+                if line_num <= 5:
+                    print(f"DEBUG: Skipping SSID: '{ssid}'")
                 continue
             
             # Extract encryption info
@@ -172,6 +198,7 @@ def parse_wardrive_log(file_path):
         print(f"Error parsing file: {e}")
         return []
     
+    print(f"DEBUG: Total networks parsed: {len(networks)}")
     return networks
 
 def analyze_networks(networks):
