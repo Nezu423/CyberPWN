@@ -1271,6 +1271,9 @@ def beacon_sniff():
             line = (line or '').strip()
             if not line:
                 continue
+            # Skip header lines that contain 'IN-USE' or 'SSID'
+            if 'IN-USE' in line or line.startswith('SSID'):
+                continue
 
             ssid = ''
             sig_s = ''
@@ -1283,9 +1286,14 @@ def beacon_sniff():
                 sec = (parts[2] or '').strip() if len(parts) > 2 else ''
             else:
                 parts = line.split()
-                ssid = (parts[0] or '').strip() if len(parts) > 0 else ''
-                sig_s = (parts[1] or '').strip() if len(parts) > 1 else ''
-                sec = (' '.join(parts[2:]) or '').strip() if len(parts) > 2 else ''
+                # Expect at least 3 parts: SSID SIGNAL SECURITY...
+                if len(parts) >= 3:
+                    ssid = parts[0]
+                    sig_s = parts[1]
+                    sec = ' '.join(parts[2:])
+                else:
+                    # Not enough fields; skip
+                    continue
 
             sig_i = None
             try:
