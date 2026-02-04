@@ -209,6 +209,9 @@ def analyze_networks(networks):
     channel_stats = defaultdict(int)
     encryption_stats = defaultdict(int)
     
+    # Track best signal for each SSID
+    ssid_info = {}
+    
     for network in networks:
         ssid = network.get('ssid', 'Unknown')
         encryption = network.get('encryption', 'Unknown')
@@ -219,13 +222,46 @@ def analyze_networks(networks):
         if not ssid or ssid.lower() in ['unknown', '', 'n/a']:
             continue
             
+        # Track best signal and info for each SSID
+        if ssid not in ssid_info:
+            ssid_info[ssid] = {
+                'encryption': encryption,
+                'signal': signal,
+                'channel': channel,
+                'count': 1
+            }
+        else:
+            # Update if this entry has better signal
+            current_signal = ssid_info[ssid]['signal']
+            if signal is not None and (current_signal is None or signal > current_signal):
+                ssid_info[ssid]['signal'] = signal
+                ssid_info[ssid]['channel'] = channel
+            ssid_info[ssid]['count'] += 1
+        
         unique_ssids.add(ssid)
+    
+    # Now process unique SSIDs
+    for ssid in unique_ssids:
+        info = ssid_info[ssid]
+        encryption = info['encryption']
+        signal = info['signal']
+        channel = info['channel']
         
         # Categorize by encryption
         if encryption.lower() in ['open', 'none', '']:
-            open_networks.append(network)
+            open_networks.append({
+                'ssid': ssid,
+                'encryption': encryption,
+                'signal': signal,
+                'channel': channel
+            })
         else:
-            encrypted_networks.append(network)
+            encrypted_networks.append({
+                'ssid': ssid,
+                'encryption': encryption,
+                'signal': signal,
+                'channel': channel
+            })
         
         # Statistics
         if channel:
@@ -238,7 +274,9 @@ def analyze_networks(networks):
         'encrypted_networks': encrypted_networks,
         'channel_stats': dict(channel_stats),
         'encryption_stats': dict(encryption_stats),
-        'total_networks': len(networks)
+        'total_networks': len(networks),
+        'unique_count': len(unique_ssids),
+        'ssid_info': ssid_info
     }
 
 def print_results(analysis):
@@ -251,6 +289,12 @@ def print_results(analysis):
     print(f"Unique SSIDs: {len(analysis['unique_ssids'])}")
     print(f"Open Networks: {len(analysis['open_networks'])}")
     print(f"Encrypted Networks: {len(analysis['encrypted_networks'])}")
+    
+    # Show duplicate detection
+    if analysis.get('ssid_info'):
+        duplicates = sum(1 for info in analysis['ssid_info'].values() if info['count'] > 1)
+        if duplicates > 0:
+            print(f"Duplicates Removed: {duplicates} SSIDs appeared multiple times")
     
     # Encryption breakdown
     print("\n" + "-" * 40)
