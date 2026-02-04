@@ -12,128 +12,158 @@ from collections import defaultdict
 from datetime import datetime
 
 def parse_wardrive_log(file_path):
-    """Parse wardrive log file (JSON or text format)"""
+    """Parse wardrive log file (JSON lines or text format)"""
     networks = []
     
     try:
         with open(file_path, 'r', encoding='utf-8', errors='ignore') as f:
-            content = f.read()
+            lines = f.readlines()
             
-        # Try JSON format first
-        try:
-            data = json.loads(content)
-            if isinstance(data, list):
-                networks = data
-            elif isinstance(data, dict) and 'networks' in data:
-                networks = data['networks']
-            elif isinstance(data, dict):
-                networks = [data]
-        except json.JSONDecodeError:
-            # Try to parse as text/log format
-            lines = content.split('\n')
-            for line in lines:
-                line = line.strip()
-                if not line:
-                    continue
-                
-                # Multiple SSID extraction patterns
-                ssid = None
-                
-                # Pattern 1: SSID: "NetworkName"
-                ssid_match = re.search(r'SSID[:\s]+["\']?([^"\',\s]+)["\']?', line, re.IGNORECASE)
-                if ssid_match:
-                    ssid = ssid_match.group(1)
-                
-                # Pattern 2: ESSID:"NetworkName" (iwconfig format)
-                if not ssid:
-                    essid_match = re.search(r'ESSID[:\s]+["\']?([^"\']+)["\']?', line, re.IGNORECASE)
-                    if essid_match:
-                        ssid = essid_match.group(1)
-                
-                # Pattern 3: "NetworkName" (quoted SSID alone)
-                if not ssid:
-                    quoted_match = re.search(r'^["\']([^"\']+)["\']$', line)
-                    if quoted_match:
-                        ssid = quoted_match.group(1)
-                
-                # Pattern 4: NetworkName (unquoted, just a word)
-                if not ssid and len(line.split()) == 1 and len(line) > 2:
-                    # Single word that looks like a network name
-                    if not re.match(r'^[0-9\-\.]+$', line) and not line.startswith(('0x', '00:')):
-                        ssid = line
-                
-                # Pattern 5: JSON-like entries in text
-                if not ssid:
-                    json_match = re.search(r'"ssid"[:\s]*["\']([^"\']+)["\']', line, re.IGNORECASE)
-                    if json_match:
-                        ssid = json_match.group(1)
-                
-                if not ssid:
-                    continue
-                
-                # Skip common non-SSID entries
-                if ssid.lower() in ['unknown', '', 'n/a', 'null', 'none', 'hidden', 'ssid']:
-                    continue
-                
-                # Extract encryption info
-                encryption = "Unknown"
-                line_upper = line.upper()
-                
-                if any(word in line_upper for word in ['WEP', 'WEP-']):
-                    encryption = "WEP"
-                elif any(word in line_upper for word in ['WPA2', 'WPA2-']):
+        for line_num, line in enumerate(lines, 1):
+            line = line.strip()
+            if not line:
+                continue
+            
+            # Try to parse each line as JSON (JSON lines format)
+            try:
+                data = json.loads(line)
+                if isinstance(data, dict):
+                    # Extract SSID from JSON
+                    ssid = data.get('ssid') or data.get('SSID') or data.get('essid') or data.get('ESSID')
+                    if ssid:
+                        # Extract encryption from JSON
+                        encryption = data.get('encryption', data.get('security', 'Unknown'))
+                        if isinstance(encryption, list):
+                            encryption = ', '.join(encryption)
+                        
+                        # Extract signal
+                        signal = data.get('signal') or data.get('rssi') or data.get('RSSI') or data.get('level')
+                        if isinstance(signal, (int, float)):
+                            signal = int(signal)
+                        elif isinstance(signal, str):
+                            signal_match = re.search(r'(-?\d+)', signal)
+                            if signal_match:
+                                signal = int(signal_match.group(1))
+                        
+                        # Extract channel
+                        channel = data.get('channel') or data.get('Channel')
+                        if isinstance(channel, (int, float)):
+                            channel = int(channel)
+                        elif isinstance(channel, str):
+                            channel_match = re.search(r'(\d+)', channel)
+                            if channel_match:
+                                channel = int(channel_match.group(1))
+                        
+                        networks.append({
+                            'ssid': ssid,
+                            'encryption': encryption,
+                            'signal': signal,
+                            'channel': channel,
+                            'raw_line': line
+                        })
+                        continue
+            except json.JSONDecodeError:
+                pass  # Not JSON, try text parsing
+            
+            # If not JSON, try text parsing
+            # Multiple SSID extraction patterns
+            ssid = None
+            
+            # Pattern 1: SSID: "NetworkName"
+            ssid_match = re.search(r'SSID[:\s]+["\']?([^"\',\s]+)["\']?', line, re.IGNORECASE)
+            if ssid_match:
+                ssid = ssid_match.group(1)
+            
+            # Pattern 2: ESSID:"NetworkName" (iwconfig format)
+            if not ssid:
+                essid_match = re.search(r'ESSID[:\s]+["\']?([^"\']+)["\']?', line, re.IGNORECASE)
+                if essid_match:
+                    ssid = essid_match.group(1)
+            
+            # Pattern 3: "NetworkName" (quoted SSID alone)
+            if not ssid:
+                quoted_match = re.search(r'^["\']([^"\']+)["\']$', line)
+                if quoted_match:
+                    ssid = quoted_match.group(1)
+            
+            # Pattern 4: NetworkName (unquoted, just a word)
+            if not ssid and len(line.split()) == 1 and len(line) > 2:
+                # Single word that looks like a network name
+                if not re.match(r'^[0-9\-\.]+$', line) and not line.startswith(('0x', '00:')):
+                    ssid = line
+            
+            # Pattern 5: JSON-like entries in text
+            if not ssid:
+                json_match = re.search(r'"ssid"[:\s]*["\']([^"\']+)["\']', line, re.IGNORECASE)
+                if json_match:
+                    ssid = json_match.group(1)
+            
+            if not ssid:
+                continue
+            
+            # Skip common non-SSID entries
+            if ssid.lower() in ['unknown', '', 'n/a', 'null', 'none', 'hidden', 'ssid']:
+                continue
+            
+            # Extract encryption info
+            encryption = "Unknown"
+            line_upper = line.upper()
+            
+            if any(word in line_upper for word in ['WEP', 'WEP-']):
+                encryption = "WEP"
+            elif any(word in line_upper for word in ['WPA2', 'WPA2-']):
+                encryption = "WPA2"
+            elif any(word in line_upper for word in ['WPA', 'WPA-']):
+                encryption = "WPA"
+            elif any(word in line_upper for word in ['OPEN', 'NONE', 'OPEN-NETWORK']):
+                encryption = "Open"
+            elif 'PSK' in line_upper:
+                if 'WPA2' in line_upper:
                     encryption = "WPA2"
-                elif any(word in line_upper for word in ['WPA', 'WPA-']):
+                elif 'WPA' in line_upper:
                     encryption = "WPA"
-                elif any(word in line_upper for word in ['OPEN', 'NONE', 'OPEN-NETWORK']):
-                    encryption = "Open"
-                elif 'PSK' in line_upper:
-                    if 'WPA2' in line_upper:
-                        encryption = "WPA2"
-                    elif 'WPA' in line_upper:
-                        encryption = "WPA"
-                
-                # Extract signal strength
-                signal = None
-                signal_patterns = [
-                    r'(-?\d+)\s*dBm',
-                    r'Signal[:\s]+(-?\d+)',
-                    r'RSSI[:\s]+(-?\d+)',
-                    r'Level[:\s]+(-?\d+)'
-                ]
-                for pattern in signal_patterns:
-                    signal_match = re.search(pattern, line, re.IGNORECASE)
-                    if signal_match:
-                        signal = int(signal_match.group(1))
-                        break
-                
-                # Extract channel
-                channel = None
-                channel_patterns = [
-                    r'channel[:\s]+(\d+)',
-                    r'CH[:\s]+(\d+)',
-                    r'Frequency[:\s]+[\d.]+.*\(CH\s*(\d+)\)',
-                    r'(\d+)\s*GHz'  # Convert GHz to channel if needed
-                ]
-                for pattern in channel_patterns:
-                    channel_match = re.search(pattern, line, re.IGNORECASE)
-                    if channel_match:
-                        channel = int(channel_match.group(1))
-                        # Convert GHz to channel if needed
-                        if channel > 100:  # Likely GHz frequency
-                            if 2.4 <= channel/1000 <= 2.5:
-                                channel = 6  # Default 2.4GHz channel
-                            elif 5.0 <= channel/1000 <= 6.0:
-                                channel = 36  # Default 5GHz channel
-                        break
-                
-                networks.append({
-                    'ssid': ssid,
-                    'encryption': encryption,
-                    'signal': signal,
-                    'channel': channel,
-                    'raw_line': line
-                })
+            
+            # Extract signal strength
+            signal = None
+            signal_patterns = [
+                r'(-?\d+)\s*dBm',
+                r'Signal[:\s]+(-?\d+)',
+                r'RSSI[:\s]+(-?\d+)',
+                r'Level[:\s]+(-?\d+)'
+            ]
+            for pattern in signal_patterns:
+                signal_match = re.search(pattern, line, re.IGNORECASE)
+                if signal_match:
+                    signal = int(signal_match.group(1))
+                    break
+            
+            # Extract channel
+            channel = None
+            channel_patterns = [
+                r'channel[:\s]+(\d+)',
+                r'CH[:\s]+(\d+)',
+                r'Frequency[:\s]+[\d.]+.*\(CH\s*(\d+)\)',
+                r'(\d+)\s*GHz'  # Convert GHz to channel if needed
+            ]
+            for pattern in channel_patterns:
+                channel_match = re.search(pattern, line, re.IGNORECASE)
+                if channel_match:
+                    channel = int(channel_match.group(1))
+                    # Convert GHz to channel if needed
+                    if channel > 100:  # Likely GHz frequency
+                        if 2.4 <= channel/1000 <= 2.5:
+                            channel = 6  # Default 2.4GHz channel
+                        elif 5.0 <= channel/1000 <= 6.0:
+                            channel = 36  # Default 5GHz channel
+                    break
+            
+            networks.append({
+                'ssid': ssid,
+                'encryption': encryption,
+                'signal': signal,
+                'channel': channel,
+                'raw_line': line
+            })
                     
     except FileNotFoundError:
         print(f"Error: File {file_path} not found")
