@@ -7,7 +7,7 @@ import json
 import sys
 
 def parse_log_file(file_path):
-    """Parse your specific log format"""
+    """Parse plain text log format"""
     all_ssids = set()
     open_networks = []
     encrypted_networks = []
@@ -19,35 +19,96 @@ def parse_log_file(file_path):
                 if not line:
                     continue
                 
-                try:
-                    data = json.loads(line)
-                    ssid = data.get('ssid')
-                    if not ssid:
-                        continue
-                    
-                    all_ssids.add(ssid)
-                    
-                    # Check if open using should_be_open field
-                    is_open = data.get('should_be_open', False)
-                    encryption = data.get('encryption', 'Unknown')
-                    
-                    network_info = {
-                        'ssid': ssid,
-                        'encryption': encryption,
-                        'signal': data.get('signal'),
-                        'channel': data.get('channel'),
-                        'line': line_num
-                    }
-                    
-                    if is_open:
-                        open_networks.append(network_info)
-                    else:
-                        encrypted_networks.append(network_info)
-                        
-                except json.JSONDecodeError:
-                    print(f"Line {line_num}: Invalid JSON - {line[:50]}...")
+                # Parse plain text format
+                # Look for SSID patterns in plain text
+                ssid = None
+                
+                # Try different patterns for SSID extraction
+                if 'SSID:' in line:
+                    # Format: SSID: NetworkName
+                    parts = line.split('SSID:')
+                    if len(parts) > 1:
+                        ssid = parts[1].strip().strip('"\'')
+                elif 'ssid:' in line:
+                    # Format: ssid: NetworkName
+                    parts = line.split('ssid:')
+                    if len(parts) > 1:
+                        ssid = parts[1].strip().strip('"\'')
+                elif line.startswith('"') and line.endswith('"'):
+                    # Format: "NetworkName"
+                    ssid = line.strip('"\'')
+                elif 'should_be_open' in line:
+                    # Extract SSID from should_be_open lines
+                    if 'ssid' in line:
+                        # Extract ssid from the line
+                        import re
+                        ssid_match = re.search(r'ssid["\']?\s*[:=]\s*["\']([^"\']+)["\']', line)
+                        if ssid_match:
+                            ssid = ssid_match.group(1)
+                else:
+                    # Try to extract from any line that looks like a network name
+                    # Skip lines that are clearly not SSIDs
+                    if not any(char in line for char in ['{', '}', '[', ']', ',', ':', '=', '(', ')']) and len(line) > 2:
+                        if not line.isdigit() and not line.replace('-', '').replace('.', '').isdigit():
+                            ssid = line.strip('"\'')
+                
+                if not ssid or len(ssid) < 2:
                     continue
-                    
+                
+                # Skip common non-SSID entries
+                if ssid.lower() in ['unknown', 'n/a', 'none', 'hidden', 'ssid', 'network']:
+                    continue
+                
+                all_ssids.add(ssid)
+                
+                # Check if open network
+                is_open = False
+                encryption = "Unknown"
+                
+                # Look for open indicators
+                if 'should_be_open' in line and ('true' in line or 'True' in line):
+                    is_open = True
+                    encryption = "Open"
+                elif 'open' in line.lower():
+                    is_open = True
+                    encryption = "Open"
+                elif 'none' in line.lower() or 'no encryption' in line.lower():
+                    is_open = True
+                    encryption = "Open"
+                elif 'wpa' in line.lower():
+                    encryption = "WPA"
+                    is_open = False
+                elif 'wep' in line.lower():
+                    encryption = "WEP"
+                    is_open = False
+                
+                # Extract signal strength
+                signal = None
+                import re
+                signal_match = re.search(r'(-?\d+)\s*dBm', line)
+                if signal_match:
+                    signal = int(signal_match.group(1))
+                
+                # Extract channel
+                channel = None
+                channel_match = re.search(r'channel[:\s]+(\d+)', line, re.IGNORECASE)
+                if channel_match:
+                    channel = int(channel_match.group(1))
+                
+                network_info = {
+                    'ssid': ssid,
+                    'encryption': encryption,
+                    'signal': signal,
+                    'channel': channel,
+                    'line': line_num,
+                    'raw_line': line
+                }
+                
+                if is_open:
+                    open_networks.append(network_info)
+                else:
+                    encrypted_networks.append(network_info)
+                        
     except FileNotFoundError:
         print(f"Error: File {file_path} not found")
         return
@@ -75,13 +136,15 @@ def parse_log_file(file_path):
     if open_networks:
         print()
         print("=" * 60)
-        print("OPEN NETWORKS (should_be_open = true):")
+        print("OPEN NETWORKS:")
         print("=" * 60)
         for i, net in enumerate(open_networks, 1):
             signal = net.get('signal', 'N/A')
             channel = net.get('channel', 'N/A')
             print(f"{i:3}. {net['ssid']}")
             print(f"     Signal: {signal} dBm | Channel: {channel} | Line: {net['line']}")
+            if len(net['raw_line']) < 100:
+                print(f"     Raw: {net['raw_line']}")
     
     # Encrypted networks (first 10)
     if encrypted_networks:
