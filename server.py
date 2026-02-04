@@ -96,54 +96,6 @@ def run_capture(cmd, timeout=10):
         }
 
 
-def _geteuid() -> int | None:
-    try:
-        fn = getattr(os, 'geteuid', None)
-        if not callable(fn):
-            return None
-        return int(fn())
-    except Exception:
-        return None
-
-
-def _cmd_exists(name: str) -> bool:
-    name = (name or '').strip()
-    if not name:
-        return False
-    r = run_capture(f"command -v {name}", timeout=2)
-    if r.get('returncode') == 0 and (r.get('stdout') or '').strip():
-        return True
-    r2 = run_capture(f"which {name}", timeout=2)
-    return bool(r2.get('returncode') == 0 and (r2.get('stdout') or '').strip())
-
-
-def _has_ipv6_default_route() -> bool:
-    try:
-        r = run_capture("ip -6 route show default | head -1", timeout=2)
-        return bool(r.get('returncode') == 0 and (r.get('stdout') or '').strip())
-    except Exception:
-        return False
-
-
-def _run_root(cmd: str, timeout: int = 10) -> dict:
-    cmd = (cmd or '').strip()
-    if not cmd:
-        return {'cmd': cmd, 'stdout': '', 'stderr': 'Empty command', 'returncode': -1, 'timeout': False}
-
-    euid = _geteuid()
-    if euid == 0:
-        return run_capture(cmd, timeout=timeout)
-
-    r = run_capture(f"sudo -n {cmd}", timeout=timeout)
-    if r.get('returncode') == 0:
-        return r
-
-    r2 = run_capture(cmd, timeout=timeout)
-    if r2.get('returncode') == 0:
-        return r2
-    return r
-
-
 def _resolve_host_addrs(host: str) -> list[str]:
     host = (host or '').strip()
     if not host:
@@ -340,27 +292,20 @@ def _ks_chain_v6() -> str:
 
 def _ks_applied_v4() -> bool:
     ch = _ks_chain_v4()
-    if not _cmd_exists('iptables'):
-        return False
-    r = _run_root(f"iptables -C OUTPUT -j {ch}", timeout=3)
+    r = run_capture(f"sudo iptables -C OUTPUT -j {ch} 2>/dev/null", timeout=3)
     return bool(r.get('returncode') == 0)
 
 
 def _ks_applied_v6() -> bool:
     ch = _ks_chain_v6()
-    if not _cmd_exists('ip6tables'):
-        return False
-    r = _run_root(f"ip6tables -C OUTPUT -j {ch}", timeout=3)
+    r = run_capture(f"sudo ip6tables -C OUTPUT -j {ch} 2>/dev/null", timeout=3)
     return bool(r.get('returncode') == 0)
 
 
 def _ks_apply_v4() -> tuple[bool, str]:
     ch = _ks_chain_v4()
-    if not _cmd_exists('iptables'):
-        return False, 'iptables not found'
-
-    _run_root(f"iptables -N {ch}", timeout=3)
-    _run_root(f"iptables -F {ch}", timeout=3)
+    run_capture(f"sudo iptables -N {ch} 2>/dev/null", timeout=3)
+    run_capture(f"sudo iptables -F {ch} 2>/dev/null", timeout=3)
 
     allow = [
         '127.0.0.0/8',
@@ -371,11 +316,11 @@ def _ks_apply_v4() -> tuple[bool, str]:
         '224.0.0.0/4',
     ]
     for cidr in allow:
-        _run_root(f"iptables -A {ch} -d {cidr} -j RETURN", timeout=3)
-    _run_root(f"iptables -A {ch} -j DROP", timeout=3)
+        run_capture(f"sudo iptables -A {ch} -d {cidr} -j RETURN 2>/dev/null", timeout=3)
+    run_capture(f"sudo iptables -A {ch} -j DROP 2>/dev/null", timeout=3)
 
     if not _ks_applied_v4():
-        r = _run_root(f"iptables -I OUTPUT 1 -j {ch}", timeout=3)
+        r = run_capture(f"sudo iptables -I OUTPUT 1 -j {ch} 2>/dev/null", timeout=3)
         if r.get('returncode') != 0:
             return False, (r.get('stderr') or r.get('stdout') or 'iptables insert failed')
     return True, ''
@@ -383,11 +328,8 @@ def _ks_apply_v4() -> tuple[bool, str]:
 
 def _ks_apply_v6() -> tuple[bool, str]:
     ch = _ks_chain_v6()
-    if not _cmd_exists('ip6tables'):
-        return True, 'ip6tables not found (skipping v6)'
-
-    _run_root(f"ip6tables -N {ch}", timeout=3)
-    _run_root(f"ip6tables -F {ch}", timeout=3)
+    run_capture(f"sudo ip6tables -N {ch} 2>/dev/null", timeout=3)
+    run_capture(f"sudo ip6tables -F {ch} 2>/dev/null", timeout=3)
 
     allow = [
         '::1/128',
@@ -395,11 +337,11 @@ def _ks_apply_v6() -> tuple[bool, str]:
         'fc00::/7',
     ]
     for cidr in allow:
-        _run_root(f"ip6tables -A {ch} -d {cidr} -j RETURN", timeout=3)
-    _run_root(f"ip6tables -A {ch} -j DROP", timeout=3)
+        run_capture(f"sudo ip6tables -A {ch} -d {cidr} -j RETURN 2>/dev/null", timeout=3)
+    run_capture(f"sudo ip6tables -A {ch} -j DROP 2>/dev/null", timeout=3)
 
     if not _ks_applied_v6():
-        r = _run_root(f"ip6tables -I OUTPUT 1 -j {ch}", timeout=3)
+        r = run_capture(f"sudo ip6tables -I OUTPUT 1 -j {ch} 2>/dev/null", timeout=3)
         if r.get('returncode') != 0:
             return False, (r.get('stderr') or r.get('stdout') or 'ip6tables insert failed')
     return True, ''
@@ -408,86 +350,22 @@ def _ks_apply_v6() -> tuple[bool, str]:
 def _ks_apply() -> tuple[bool, dict]:
     ok4, err4 = _ks_apply_v4()
     ok6, err6 = _ks_apply_v6()
-    ipv6_default = _has_ipv6_default_route()
-    ipv6_disabled = False
-    ipv6_disable_err = ''
-
-    if ipv6_default and (not _cmd_exists('ip6tables')):
-        if not _cmd_exists('sysctl'):
-            ok6 = False
-            err6 = 'IPv6 default route present but ip6tables not found; sysctl not available to disable IPv6'
-        else:
-            prev_all = (run_capture('sysctl -n net.ipv6.conf.all.disable_ipv6', timeout=2).get('stdout') or '').strip()
-            prev_def = (run_capture('sysctl -n net.ipv6.conf.default.disable_ipv6', timeout=2).get('stdout') or '').strip()
-            r1 = _run_root('sysctl -w net.ipv6.conf.all.disable_ipv6=1', timeout=3)
-            r2 = _run_root('sysctl -w net.ipv6.conf.default.disable_ipv6=1', timeout=3)
-            if r1.get('returncode') == 0 and r2.get('returncode') == 0:
-                ipv6_disabled = True
-                cur = _ks_read()
-                cur['ipv6_disabled'] = True
-                cur['ipv6_prev_all'] = prev_all
-                cur['ipv6_prev_default'] = prev_def
-                _ks_write(cur)
-            else:
-                ipv6_disable_err = (r1.get('stderr') or r1.get('stdout') or '').strip()
-                if not ipv6_disable_err:
-                    ipv6_disable_err = (r2.get('stderr') or r2.get('stdout') or '').strip()
-                ok6 = False
-                err6 = 'IPv6 default route present but ip6tables not found; failed to disable IPv6 via sysctl'
-
-    return bool(ok4 and ok6), {
-        'v4_ok': ok4,
-        'v4_err': err4,
-        'v6_ok': ok6,
-        'v6_err': err6,
-        'ipv6_default_route': ipv6_default,
-        'ipv6_disabled': ipv6_disabled,
-        'ipv6_disable_err': ipv6_disable_err,
-    }
+    return bool(ok4 and ok6), {'v4_ok': ok4, 'v4_err': err4, 'v6_ok': ok6, 'v6_err': err6}
 
 
 def _ks_disable() -> tuple[bool, dict]:
     ch4 = _ks_chain_v4()
     ch6 = _ks_chain_v6()
 
+    run_capture(f"sudo iptables -D OUTPUT -j {ch4} 2>/dev/null", timeout=3)
+    run_capture(f"sudo iptables -F {ch4} 2>/dev/null", timeout=3)
+    run_capture(f"sudo iptables -X {ch4} 2>/dev/null", timeout=3)
 
-    if _cmd_exists('iptables'):
-        _run_root(f"iptables -D OUTPUT -j {ch4}", timeout=3)
-        _run_root(f"iptables -F {ch4}", timeout=3)
-        _run_root(f"iptables -X {ch4}", timeout=3)
+    run_capture(f"sudo ip6tables -D OUTPUT -j {ch6} 2>/dev/null", timeout=3)
+    run_capture(f"sudo ip6tables -F {ch6} 2>/dev/null", timeout=3)
+    run_capture(f"sudo ip6tables -X {ch6} 2>/dev/null", timeout=3)
 
-    if _cmd_exists('ip6tables'):
-        _run_root(f"ip6tables -D OUTPUT -j {ch6}", timeout=3)
-        _run_root(f"ip6tables -F {ch6}", timeout=3)
-        _run_root(f"ip6tables -X {ch6}", timeout=3)
-
-    ipv6_restored = False
-    ipv6_restore_err = ''
-    ks = _ks_read()
-    if ks.get('ipv6_disabled') and _cmd_exists('sysctl'):
-        prev_all = str(ks.get('ipv6_prev_all') or '0').strip()
-        prev_def = str(ks.get('ipv6_prev_default') or '0').strip()
-        if prev_all not in ('0', '1'):
-            prev_all = '0'
-        if prev_def not in ('0', '1'):
-            prev_def = '0'
-        r1 = _run_root(f"sysctl -w net.ipv6.conf.all.disable_ipv6={prev_all}", timeout=3)
-        r2 = _run_root(f"sysctl -w net.ipv6.conf.default.disable_ipv6={prev_def}", timeout=3)
-        if r1.get('returncode') == 0 and r2.get('returncode') == 0:
-            ipv6_restored = True
-            ks['ipv6_disabled'] = False
-            _ks_write(ks)
-        else:
-            ipv6_restore_err = (r1.get('stderr') or r1.get('stdout') or '').strip()
-            if not ipv6_restore_err:
-                ipv6_restore_err = (r2.get('stderr') or r2.get('stdout') or '').strip()
-
-    return True, {
-        'v4_applied': _ks_applied_v4(),
-        'v6_applied': _ks_applied_v6(),
-        'ipv6_restored': ipv6_restored,
-        'ipv6_restore_err': ipv6_restore_err,
-    }
+    return True, {'v4_applied': _ks_applied_v4(), 'v6_applied': _ks_applied_v6()}
 
 
 @app.route('/api/killswitch', methods=['POST'])
@@ -499,24 +377,18 @@ def api_killswitch() -> Response:
             return jsonify({'ok': False, 'error': 'Invalid action'}), 400
 
         if action == 'enable':
-            ok, details = _ks_apply()
+            ok, err = _ks_apply()
             if not ok:
-                return jsonify({'ok': False, 'error': details}), 500
-            cur = _ks_read()
-            cur['enabled'] = True
-            cur['auto'] = bool(cur.get('auto', False))
-            _ks_write(cur)
-            return jsonify({'ok': True, 'enabled': True, 'details': details})
+                return jsonify({'ok': False, 'error': err}), 500
+            _ks_write({'enabled': True, 'auto': _ks_read().get('auto', False)})
+            return jsonify({'ok': True, 'enabled': True})
 
         if action == 'disable':
-            ok, details = _ks_disable()
+            ok, err = _ks_disable()
             if not ok:
-                return jsonify({'ok': False, 'error': details}), 500
-            cur = _ks_read()
-            cur['enabled'] = False
-            cur['auto'] = bool(cur.get('auto', False))
-            _ks_write(cur)
-            return jsonify({'ok': True, 'enabled': False, 'details': details})
+                return jsonify({'ok': False, 'error': err}), 500
+            _ks_write({'enabled': False, 'auto': _ks_read().get('auto', False)})
+            return jsonify({'ok': True, 'enabled': False})
 
         if action == 'set_auto':
             auto_val = data.get('auto')
@@ -532,25 +404,8 @@ def api_killswitch() -> Response:
             auto = ks_data.get('auto', False)
             v4_applied = _ks_applied_v4()
             v6_applied = _ks_applied_v6()
-            sudo_n = run_capture('sudo -n true', timeout=2)
-            return jsonify({
-                'ok': True,
-                'enabled': enabled,
-                'auto': auto,
-                'v4_applied': v4_applied,
-                'v6_applied': v6_applied,
-                'diag': {
-                    'euid': _geteuid(),
-                    'sudo_n_ok': bool(sudo_n.get('returncode') == 0),
-                    'sudo_n_err': (sudo_n.get('stderr') or sudo_n.get('stdout') or '').strip()[:200],
-                    'iptables_exists': _cmd_exists('iptables'),
-                    'ip6tables_exists': _cmd_exists('ip6tables'),
-                    'ipv6_default_route': _has_ipv6_default_route(),
-                    'ipv6_disabled': bool(ks_data.get('ipv6_disabled')),
-                }
-            })
+            return jsonify({'ok': True, 'enabled': enabled, 'auto': auto, 'v4_applied': v4_applied, 'v6_applied': v6_applied})
 
-        return jsonify({'ok': False, 'error': 'Unhandled action'}), 400
     except Exception as e:
         return jsonify({'ok': False, 'error': str(e)}), 500
 
@@ -849,70 +704,6 @@ def get_all_interfaces():
     return interfaces
 
 
-@app.route('/api/interfaces/status', methods=['GET'])
-def api_interfaces_status() -> Response:
-    try:
-        return jsonify({'ok': True, 'interfaces': get_all_interfaces()})
-    except Exception as e:
-        return jsonify({'ok': False, 'error': str(e)}), 500
-
-
-@app.route('/api/interfaces/<iface>/up', methods=['POST'])
-def api_iface_up(iface: str) -> Response:
-    try:
-        iface = _validate_iface_or_400(iface)
-        r = _run_root(f"ip link set dev {iface} up", timeout=4)
-        if r.get('returncode') != 0:
-            return jsonify({'ok': False, 'error': (r.get('stderr') or r.get('stdout') or 'Failed'), 'cmd': r.get('cmd')}), 500
-        return jsonify({'ok': True, 'iface': iface})
-    except Exception as e:
-        return jsonify({'ok': False, 'error': str(e)}), 500
-
-
-@app.route('/api/interfaces/<iface>/down', methods=['POST'])
-def api_iface_down(iface: str) -> Response:
-    try:
-        iface = _validate_iface_or_400(iface)
-        r = _run_root(f"ip link set dev {iface} down", timeout=4)
-        if r.get('returncode') != 0:
-            return jsonify({'ok': False, 'error': (r.get('stderr') or r.get('stdout') or 'Failed'), 'cmd': r.get('cmd')}), 500
-        return jsonify({'ok': True, 'iface': iface})
-    except Exception as e:
-        return jsonify({'ok': False, 'error': str(e)}), 500
-
-
-@app.route('/api/scan_wifi_list', methods=['GET'])
-def api_scan_wifi_list() -> Response:
-    try:
-        if not _cmd_exists('nmcli'):
-            return jsonify({'ok': False, 'error': 'nmcli not found'}), 500
-
-        r = run_capture("nmcli -t --separator '|' -f SSID,SIGNAL dev wifi list", timeout=10)
-        if r.get('returncode') != 0:
-            return jsonify({'ok': False, 'error': 'nmcli scan failed', 'stdout': r.get('stdout', ''), 'stderr': r.get('stderr', '')}), 500
-
-        out = (r.get('stdout') or '').splitlines()
-        nets = []
-        for line in out:
-            line = (line or '').strip()
-            if not line:
-                continue
-            parts = line.split('|')
-            ssid = (parts[0] or '').strip() if len(parts) > 0 else ''
-            sig = (parts[1] or '').strip() if len(parts) > 1 else ''
-            try:
-                sig_i = int(sig)
-            except Exception:
-                sig_i = None
-            nets.append({'ssid': ssid, 'signal': sig_i})
-            if len(nets) >= 12:
-                break
-
-        return jsonify(nets)
-    except Exception as e:
-        return jsonify({'ok': False, 'error': str(e)}), 500
-
-
 # --- Authentication ---
 @app.route('/api/verify_pin', methods=['POST'])
 def api_verify_pin():
@@ -1157,17 +948,12 @@ def api_arp_spoof_watch() -> Response:
 
         _prime_arp(gw)
 
-        if not _cmd_exists('tcpdump'):
-            return jsonify({'ok': False, 'error': 'tcpdump not found', 'debug': {'tcpdump_exists': False}}), 500
-        if not _cmd_exists('timeout'):
-            return jsonify({'ok': False, 'error': 'timeout not found', 'debug': {'timeout_exists': False}}), 500
-
         if iface:
-            cmd = f"timeout {seconds}s tcpdump -n -e -l -i {iface} arp"
+            cmd = f"sudo timeout {seconds}s tcpdump -n -e -l -i {iface} arp 2>&1"
         else:
-            cmd = f"timeout {seconds}s tcpdump -n -e -l -i any arp"
+            cmd = f"sudo timeout {seconds}s tcpdump -n -e -l -i any arp 2>&1"
 
-        cap = _run_root(cmd, timeout=seconds + 4)
+        cap = run_capture(cmd, timeout=seconds + 3)
         out = (cap.get('stdout') or '').splitlines()
         err = (cap.get('stderr') or '').splitlines()
 
@@ -1219,11 +1005,6 @@ def api_arp_spoof_watch() -> Response:
             'reason': reason,
             'ks_auto': ks_auto,
             'ks_applied': ks_applied,
-            'diag': {
-                'euid': _geteuid(),
-                'tcpdump_exists': _cmd_exists('tcpdump'),
-                'timeout_exists': _cmd_exists('timeout'),
-            },
             'sample': out[:20],
             'stderr': err[:20],
             'cmd': cmd,
@@ -1240,11 +1021,26 @@ def beacon_sniff():
         note = ''
         last_err = {'stdout': '', 'stderr': '', 'cmd': '', 'rc': None}
 
+<<<<<<< HEAD
         try:
             run_capture("nmcli dev wifi rescan 2>/dev/null", timeout=8)
             time.sleep(0.4)
         except Exception:
             pass
+=======
+        cmds = [
+            "nmcli -t --separator '|' -f SSID,BSSID,SIGNAL,CHAN,SECURITY dev wifi list",
+            "nmcli -t -f SSID,BSSID,SIGNAL,CHAN,SECURITY dev wifi list",
+        ]
+        r = None
+        for cmd in cmds:
+            rr = run_capture(cmd, timeout=10)
+            last_err = {'stdout': rr.get('stdout', ''), 'stderr': rr.get('stderr', '')}
+            if rr.get('returncode') == 0 and (rr.get('stdout') or '').strip():
+                r = rr
+                note = 'Managed-mode scan'
+                break
+>>>>>>> parent of 6c1cdae (testing fix)
 
         cmd = "nmcli -t -f SSID,SIGNAL,SECURITY dev wifi list"
         rr = run_capture(cmd, timeout=12)
